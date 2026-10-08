@@ -1,0 +1,6 @@
+Open "Angels Online Items.html" in Chrome or Edge (keep this folder together — icons\ and pd\ must sit next to the HTML).
+
+Search a name or item ID. Filter by group or by level (gear level, or the skill level a scroll needs).
+The Skills tab lists skill scrolls under each skill, grouped by spell and rank.
+Click a row to try fashion, weapons, and mounts on the paper doll.
+The "item 12345" button copies the Preservation /item command.
