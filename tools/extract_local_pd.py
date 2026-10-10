@@ -8,6 +8,7 @@ from pathlib import Path
 
 from client_pd_map import find_spr, load_ride_rows, parse_obd, ride_by_appearance
 from ewsp import decode_wait, pack_atlas
+from translate_text import translate_catalog_display_text
 
 # The wiki dummy is the classic ~82px body. Later packs also ship a taller
 # Wait.spr (12xxxx) in the same folder; that one floats above this body.
@@ -169,6 +170,7 @@ def resolve_item(comp: int, sex: str, obd_items: dict) -> tuple[str, Path, Path 
 
 
 def write_catalog(pd: dict) -> None:
+    translate_catalog_display_text(pd)
     text = json.dumps(pd, ensure_ascii=False, separators=(",", ":"))
     for dest in (CATALOG, SHARE_CATALOG):
         dest.parent.mkdir(parents=True, exist_ok=True)
