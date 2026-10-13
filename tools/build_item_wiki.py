@@ -22,7 +22,28 @@ ICON_DIR = ROOT / "docs" / "icons"
 SHARE_ICONS = ROOT / "share" / "items" / "icons"
 DRESS_DIR = ROOT / "docs" / "dress"
 SHARE_DRESS = ROOT / "share" / "items" / "dress"
-EXTRACT = Path(r"C:\Program Files (x86)\Angels Online\extracted")
+def _extract_root() -> Path:
+    import os
+    env = os.environ.get("AO_EXTRACT")
+    candidates = []
+    if env:
+        candidates.append(Path(env))
+    home = Path.home()
+    candidates.extend([
+        home / "OneDrive" / "Desktop" / "Angels Online" / "extracted",
+        home / "Desktop" / "Angels Online" / "extracted",
+        Path(r"C:\Program Files (x86)\Angels Online\extracted"),
+    ])
+    for path in candidates:
+        if (path / "update26").exists() or (path / "UPDATE26").exists():
+            return path
+    for path in candidates:
+        if path.exists():
+            return path
+    return candidates[-1]
+
+
+EXTRACT = _extract_root()
 
 TABLES = ("item", "item2", "item3", "item4", "item5", "item6", "item7", "item8", "item9")
 JUNK_NAME = re.compile(r"^(基本名稱|名稱|name|編號)$", re.I)
