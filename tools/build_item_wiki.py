@@ -18,6 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DB = ROOT / "corpus" / "content.db"
 OUT = ROOT / "docs" / "items.html"
 SHARE = ROOT / "share" / "items" / "Angels Online Items.html"
+ROOT_PAGE = ROOT / "items.html"
 ICON_DIR = ROOT / "docs" / "icons"
 SHARE_ICONS = ROOT / "share" / "items" / "icons"
 DRESS_DIR = ROOT / "docs" / "dress"
@@ -953,8 +954,18 @@ def main() -> None:
     SHARE.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(html, encoding="utf-8")
     SHARE.write_text(html, encoding="utf-8")
+    # The repo-root copy is what a GitHub zip opens first. icons/ and pd/
+    # live under docs/, so this copy needs a base URL. docs/items.html and
+    # the share folder keep relative paths because those folders sit beside them.
+    root_html = html.replace(
+        "<head>\n  <meta charset=\"utf-8\">",
+        "<head>\n  <meta charset=\"utf-8\">\n  <base href=\"docs/\">",
+        1,
+    )
+    ROOT_PAGE.write_text(root_html, encoding="utf-8")
     print(f"wrote {OUT} ({OUT.stat().st_size} bytes)")
     print(f"wrote {SHARE}")
+    print(f"wrote {ROOT_PAGE}")
 
 
 if __name__ == "__main__":

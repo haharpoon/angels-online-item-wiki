@@ -445,7 +445,7 @@
     boot(window.PD_CATALOG);
   } else {
     fetch(CATALOG).then(r => r.json()).then(boot).catch(() => {
-      dollMeta.textContent = "Paper-doll catalog missing (docs/pd/).";
+      dollMeta.textContent = "Paper-doll catalog missing. Keep the pd folder next to this HTML (docs/pd in a GitHub download).";
       studio(canvasSize());
     });
   }
