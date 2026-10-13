@@ -33,7 +33,14 @@
                             padding:11px 12px; background:#101722; color:var(--text); font:inherit; }
     button { width:auto; cursor:pointer; background:var(--accent); color:#082033; font-weight:700; }
     button.ghost { background:transparent; color:var(--text); }
-    .pager { display:flex; gap:10px; align-items:center; margin:10px 0; color:var(--muted); }
+    .pager { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:10px 0; color:var(--muted); }
+    .pager .pages { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+    .pager .pages button, .pager > button { min-height:36px; padding:6px 10px; }
+    .pager .pages button[aria-current="page"] { background:var(--accent); color:#082033; }
+    .pager .gap { min-width:1.2rem; text-align:center; }
+    .pager .goto { display:flex; align-items:center; gap:6px; color:var(--muted); font-size:.88rem; text-transform:none; letter-spacing:0; }
+    .pager .goto input { width:5.2rem; min-height:36px; padding:6px 8px; }
+    .pager button:disabled { opacity:.4; cursor:default; }
     .tableWrap { overflow:auto; border:1px solid var(--line); border-radius:18px; background:var(--panel); }
     table { width:100%; min-width:1100px; border-collapse:collapse; }
     th, td { padding:10px 12px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
@@ -85,7 +92,7 @@
   <header>
     <h1>Item Wiki</h1>
     <p class="subtitle">
-      Local catalog from your extracted client (UPDATE25 / <code>content.db</code>),
+      Local catalog from your extracted client (update 26 / <code>content.db</code>),
       grouped like the old Angels Online wikis. Search a name or paste an ID.
       Use <strong>/item &lt;id&gt;</strong> on the Preservation server to summon it.
       The level filter covers gear requirements and skill progression: a scroll
@@ -124,10 +131,16 @@
       <button id="reset" type="button">Reset</button>
       <button id="copy" class="ghost" type="button">Copy visible IDs</button>
     </div>
-    <div class="pager">
+    <div class="pager" id="pager">
+      <button id="first" type="button">First</button>
       <button id="prev" type="button">Prev</button>
-      <span id="resultMeta"></span>
+      <span id="pageLinks" class="pages"></span>
       <button id="next" type="button">Next</button>
+      <button id="last" type="button">Last</button>
+      <span id="resultMeta"></span>
+      <label class="goto">Go to page
+        <input id="gotoPage" type="number" min="1" step="1" inputmode="numeric">
+      </label>
     </div>
     <div class="stage">
     <div class="tableWrap">
@@ -336,9 +349,11 @@
       });
       const pages = Math.max(1, Math.ceil(list.length / PAGE));
       if (page > pages) page = pages;
+      if (page < 1) page = 1;
       const slice = list.slice((page-1)*PAGE, page*PAGE);
       const noun = tab === "skills" ? "scrolls" : "items";
-      document.querySelector("#resultMeta").textContent = `${list.length} ${noun} · page ${page}/${pages}`;
+      document.querySelector("#resultMeta").textContent = `${list.length} ${noun} · Page ${page} of ${pages}`;
+      paintPager(pages);
       let prevHead = "";
       const html = [];
       slice.forEach(i => {
@@ -375,6 +390,32 @@
       });
       rowsEl.innerHTML = html.join("") || `<tr><td colspan="9" class="empty">No ${noun} match the current filters.</td></tr>`;
     }
+    function pageTokens(current, total) {
+      const keep = new Set([1, total]);
+      for (let n = current - 2; n <= current + 2; n++) if (n >= 1 && n <= total) keep.add(n);
+      const nums = [...keep].sort((a, b) => a - b);
+      const out = [];
+      let prevN = 0;
+      for (const n of nums) {
+        if (prevN && n - prevN > 1) out.push(0);
+        out.push(n);
+        prevN = n;
+      }
+      return out;
+    }
+    function paintPager(pages) {
+      const box = document.querySelector("#pageLinks");
+      box.innerHTML = pageTokens(page, pages).map(n => n
+        ? `<button type="button" data-page="${n}"${n === page ? ' aria-current="page"' : ""}>${n}</button>`
+        : `<span class="gap">…</span>`).join("");
+      document.querySelector("#first").disabled = page <= 1;
+      document.querySelector("#prev").disabled = page <= 1;
+      document.querySelector("#next").disabled = page >= pages;
+      document.querySelector("#last").disabled = page >= pages;
+      const go = document.querySelector("#gotoPage");
+      go.max = String(pages);
+      if (document.activeElement !== go) go.value = String(page);
+    }
     document.querySelectorAll("th[data-k]").forEach(th => th.addEventListener("click", () => {
       sortKey = th.dataset.k; sortDir = sortDir === "asc" ? "desc" : "asc"; page = 1; render();
     }));
@@ -406,8 +447,30 @@
       const ids = filtered().map(i => i.id).join("\n");
       navigator.clipboard.writeText(ids).catch(() => {});
     });
-    document.querySelector("#prev").addEventListener("click", () => { if (page > 1) { page--; render(); } });
-    document.querySelector("#next").addEventListener("click", () => { page++; render(); });
+    document.querySelector("#pager").addEventListener("click", ev => {
+      const pageBtn = ev.target.closest("[data-page]");
+      if (pageBtn) { page = Number(pageBtn.dataset.page); render(); return; }
+      const id = ev.target.closest("button") && ev.target.closest("button").id;
+      if (id === "first") page = 1;
+      else if (id === "prev") page = Math.max(1, page - 1);
+      else if (id === "next") page += 1;
+      else if (id === "last") page = 1000000000;
+      else return;
+      render();
+    });
+    const gotoEl = document.querySelector("#gotoPage");
+    function jumpPage() {
+      const n = Number(gotoEl.value);
+      if (!Number.isFinite(n)) return;
+      page = Math.max(1, Math.floor(n));
+      render();
+    }
+    gotoEl.addEventListener("change", jumpPage);
+    gotoEl.addEventListener("keydown", ev => {
+      if (ev.key !== "Enter") return;
+      ev.preventDefault();
+      jumpPage();
+    });
     const params = new URLSearchParams(location.hash.slice(1));
     if (params.get("q")) searchEl.value = params.get("q");
     if (params.get("g")) groupEl.value = params.get("g");

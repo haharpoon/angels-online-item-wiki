@@ -184,8 +184,8 @@
     if (typeof DATA === "undefined" || typeof FILES === "undefined") return "";
     const item = DATA.find(x => x.id === id);
     if (!item || item.icon == null) return "";
-    const src = FILES[String(item.icon)];
-    return src ? '<img src="icons/' + src + '" alt="">' : "";
+    const src = String(FILES[String(item.icon)] || "").toLowerCase().replace(/\.png$/i, "");
+    return src ? '<img src="icons/' + src + '.png" alt="">' : "";
   }
 
   function renderSlots() {
