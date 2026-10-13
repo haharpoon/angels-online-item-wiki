@@ -1,6 +1,6 @@
 Open "Angels Online Items.html" in Chrome or Edge (keep this folder together — icons\ and pd\ must sit next to the HTML).
 
-A GitHub download of the repository is the same page. Open items.html at the top of the unzipped folder, or docs\items.html. Do not download only the HTML file, and do not expect GitHub's website to show it. The pictures and the paper doll are in docs\icons and docs\pd.
+The same page in a full download is docs\items.html, with docs\icons and docs\pd beside it. GitHub's website will not show the page.
 
 Search a name or item ID. Filter by group or by level (gear level, or the skill level a scroll needs).
 The Skills tab lists skill scrolls under each skill, grouped by spell and rank.
