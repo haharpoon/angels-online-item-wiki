@@ -802,15 +802,19 @@ HTML = r"""<!doctype html>
       });
     }
     function iconHtml(i, initials) {
-      const file = (FILES[String(i.icon)] || "").toLowerCase();
-      if (!file) return initials;
-      return `<img src="icons/${file}.png" alt="" data-fb="${initials}" onerror="iconFail(this)">`;
+      // Eternal names the bag picture by the interface id and shows the
+      // front-facing frame. Our SHP export is the fallback (often the back).
+      const file = (FILES[String(i.icon)] || "").toLowerCase().replace(/\.png$/i, "");
+      const urls = [];
+      if (i.icon) urls.push(`icons/${i.icon}.png`);
+      if (file) urls.push(`icons/${file}.png`);
+      if (!urls.length) return initials;
+      return `<img src="${urls[0]}" alt="" data-fb="${initials}" data-next="${urls.slice(1).join("|")}" onerror="iconFail(this)">`;
     }
     function iconFail(img) {
-      let next = [];
-      try { next = JSON.parse(img.dataset.next || "[]"); } catch (e) {}
+      const next = (img.dataset.next || "").split("|").filter(Boolean);
       if (next.length) {
-        img.dataset.next = JSON.stringify(next.slice(1));
+        img.dataset.next = next.slice(1).join("|");
         img.src = next[0];
         return;
       }
