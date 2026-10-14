@@ -79,6 +79,14 @@
     .swatches { max-height:88px; overflow:auto; display:grid; grid-template-columns:repeat(auto-fill,minmax(28px,1fr)); gap:4px; }
     .swatch { min-height:28px; padding:0; border:2px solid var(--line); background:var(--swatch,#888); }
     .swatch[aria-pressed="true"] { border-color:var(--accent); box-shadow:0 0 0 2px rgba(120,183,255,.35); }
+    .slotCell { display:flex; flex-direction:column; gap:4px; min-width:0; }
+    .handToggle { display:flex; gap:4px; }
+    .handToggle button { flex:1; min-height:28px; padding:2px 4px; font-size:.72rem; }
+    .handToggle button[aria-pressed="true"] { border-color:var(--accent); color:var(--accent); }
+    .pd-check { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:.88rem; text-transform:none; letter-spacing:0; }
+    .pd-check input { width:auto; min-height:0; }
+    #doll { image-rendering:pixelated; touch-action:none; }
+    #doll:focus { outline:2px solid var(--accent); outline-offset:2px; }
     .tryon .muted { margin-top:8px; }
     .tryon .rowbtns { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
     .tryon a { color:var(--accent); }
@@ -164,7 +172,7 @@
       <h2>Paper doll</h2>
       <p class="muted" style="margin:0 0 8px">Same Wait.spr atlases, foot anchors, and hair/skin tint as angelsonline.wiki. Eternal wiki only ships the 36px bag icons already in the table.</p>
       <div class="pd-stage">
-        <canvas id="doll" width="400" height="420"></canvas>
+        <canvas id="doll" width="400" height="420" tabindex="0" role="img" aria-label="Paper doll preview"></canvas>
       </div>
       <div class="pd-rotate">
         <button type="button" id="dollLeft" aria-label="Rotate left">◀</button>
@@ -187,13 +195,29 @@
           <button type="button" data-h="average" aria-pressed="true">Average</button>
           <button type="button" data-h="tall">Tall</button>
         </div>
+        <label class="field">Background
+          <select id="dollBg">
+            <option value="studio" selected>Studio</option>
+            <option value="plain">Plain</option>
+            <option value="dusk">Dusk court</option>
+            <option value="grove">Grove</option>
+            <option value="harbor">Night harbor</option>
+          </select>
+        </label>
+        <label class="pd-check"><input id="dollCrisp" type="checkbox"> Crisp (integer scale)</label>
+        <label class="field">Local background
+          <input id="dollBgFile" type="file" accept="image/png,image/jpeg,image/webp">
+        </label>
       </div>
       <div class="muted" id="dollMeta">Loading paper-doll sprites…</div>
       <div class="rowbtns">
         <button type="button" id="dollReset">Reset dummy</button>
         <button type="button" id="dollExample">Wiki example</button>
+        <button type="button" id="dollClear">Clear all</button>
+        <button type="button" id="dollCopy" class="ghost">Copy link</button>
+        <button type="button" id="dollSave" class="ghost">Save PNG</button>
       </div>
-      <div class="muted"><a id="dollWiki" href="https://angelsonline.wiki/pd-preview/" target="_blank" rel="noreferrer">Open this loadout on angelsonline.wiki</a></div>
+      <div class="muted"><a id="dollWiki" href="https://angelsonline.wiki/pd-preview/" target="_blank" rel="noreferrer">Open on angelsonline.wiki</a></div>
     </aside>
     </div>
   </main>
@@ -486,6 +510,7 @@
     else { paintStats(); render(); }
   </script>
   <script src="pd/catalog.js"></script>
+  <script src="pd/tint-masks.js"></script>
   <script src="pd/preview.js"></script>
 </body>
 </html>
