@@ -19,6 +19,7 @@ PAK_ORDER = (
 
 
 def rgb565(c: int) -> tuple[int, int, int]:
+    """Expand one little-endian RGB565 colour. Green uses 6 bits, so this is not RGB555."""
     r = ((c >> 11) & 31) * 255 // 31
     g = ((c >> 5) & 63) * 255 // 63
     b = (c & 31) * 255 // 31
@@ -26,6 +27,7 @@ def rgb565(c: int) -> tuple[int, int, int]:
 
 
 def _row_spans(data: bytes, start: int, end: int) -> list[tuple[int, int, int]]:
+    """Read runs as (x, pixel count, src). The pixel count is this run's width field."""
     spans = []
     p = start
     while p + 8 <= end and p + 8 <= len(data):
@@ -38,10 +40,40 @@ def _row_spans(data: bytes, start: int, end: int) -> list[tuple[int, int, int]]:
     return spans
 
 
+def palette_span(data: bytes, pal_off: int, px_off: int, pal_size: int) -> tuple[int, int, str]:
+    """Where the RGB565 table ends.
+
+    Colours are 16-bit and sit before the pixel bytes. The header size is
+    trusted when it is a colour count or an even byte length that fits in
+    that gap. Otherwise the table stops at the pixel block so index bytes
+    are not read as colours.
+    """
+    if pal_off < 0 or pal_off >= len(data):
+        return pal_off, pal_off, "palette offset is outside the file"
+    hard = len(data)
+    if px_off > pal_off:
+        hard = px_off
+        gap = px_off - pal_off
+        if 0 < pal_size <= 256 and pal_size * 2 == gap:
+            return pal_off, px_off, "header colour count fills the gap before the pixels"
+        if 0 < pal_size <= 512 and pal_size % 2 == 0 and pal_size == gap:
+            return pal_off, px_off, "header byte length fills the gap before the pixels"
+        if 0 < pal_size <= 256 and pal_size * 2 < gap:
+            return pal_off, pal_off + pal_size * 2, "header colour count; bytes after it and before the pixels are not colours"
+        if 0 < pal_size <= 512 and pal_size % 2 == 0 and pal_size < gap:
+            return pal_off, pal_off + pal_size, "header byte length; bytes after it and before the pixels are not colours"
+        return pal_off, px_off, "pixel block starts here; header size does not match the gap"
+    if 0 < pal_size <= 256 and pal_off + pal_size * 2 <= len(data):
+        return pal_off, pal_off + pal_size * 2, "header colour count"
+    if 0 < pal_size <= 512 and pal_size % 2 == 0 and pal_off + pal_size <= len(data):
+        return pal_off, pal_off + pal_size, "header byte length"
+    return pal_off, min(len(data), pal_off + 512), "no pixel offset; capped at 256 colours"
+
+
 def decode_shp_bytes(data: bytes, front: bool = True) -> Image.Image | None:
     if data[:4] != b"TLHS" or len(data) < 80:
         return None
-    frames, _pal_size, _flag, w, h = struct.unpack_from("<IIIII", data, 8)
+    frames, pal_size, _flag, w, h = struct.unpack_from("<IIIII", data, 8)
     px_off = struct.unpack_from("<I", data, 44)[0]
     pal_off = struct.unpack_from("<I", data, 64)[0]
     if w <= 0 or h <= 0 or w > 512 or h > 512:
@@ -49,10 +81,10 @@ def decode_shp_bytes(data: bytes, front: bool = True) -> Image.Image | None:
     if pal_off >= len(data) or 80 + h * 4 > len(data):
         return None
     palette = [(0, 0, 0)] * 256
-    pal_end = px_off if px_off > pal_off else min(len(data), pal_off + 512)
-    n = min(256, max(0, (pal_end - pal_off) // 2))
+    pal_start, pal_end, _why = palette_span(data, pal_off, px_off, pal_size)
+    n = min(256, max(0, (pal_end - pal_start) // 2))
     for i in range(n):
-        palette[i] = rgb565(struct.unpack_from("<H", data, pal_off + i * 2)[0])
+        palette[i] = rgb565(struct.unpack_from("<H", data, pal_start + i * 2)[0])
 
     offs = [struct.unpack_from("<I", data, 80 + i * 4)[0] for i in range(h)]
     rows = []
@@ -66,30 +98,34 @@ def decode_shp_bytes(data: bytes, front: bool = True) -> Image.Image | None:
 
     img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     pix = img.load()
-    for y, spans in enumerate(rows):
-        for i, (x, width, src) in enumerate(spans):
-            if i + 1 < len(spans):
-                nxt = spans[i + 1][2]
-            elif y + 1 < h and rows[y + 1]:
-                nxt = rows[y + 1][0][2]
-            else:
-                nxt = len(data)
-            count = nxt - src
-            if count <= 0:
-                count = max(int(width), 0)
-            if count > w:
-                count = w
+    for _y, spans in enumerate(rows):
+        for x, width, src in spans:
+            # The run's own width is the pixel count. The gap until the next
+            # src includes padding and would paint the row too wide.
+            count = int(width)
+            src_i = int(src)
             x0 = int(x)
+            if count <= 0 or src_i < 0:
+                continue
+            if x0 < 0:
+                src_i += -x0
+                count += x0
+                x0 = 0
+            if x0 >= w or count <= 0:
+                continue
+            # Keep the run where it started. Drop the pixels that fall off the edge.
             if x0 + count > w:
-                x0 = 0 if count <= w else max(0, w - count)
+                count = w - x0
+            if src_i >= len(data):
+                continue
+            if src_i + count > len(data):
+                count = len(data) - src_i
             for k in range(count):
-                if src + k >= len(data):
-                    break
-                idx = data[src + k]
+                idx = data[src_i + k]
                 if idx == 0:
                     continue
                 r, g, b = palette[idx]
-                pix[x0 + k, y] = (r, g, b, 255)
+                pix[x0 + k, _y] = (r, g, b, 255)
     return pick_front(img, frames) if front else img
 
 

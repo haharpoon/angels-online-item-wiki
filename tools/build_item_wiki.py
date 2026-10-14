@@ -5,6 +5,7 @@ for /item, and embed icons decoded from the client SHP files.
 """
 from __future__ import annotations
 
+import argparse
 import json
 import re
 import sqlite3
@@ -966,18 +967,29 @@ HTML = r"""<!doctype html>
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Build the local item wiki.")
+    parser.add_argument(
+        "--rebuild-icons",
+        action="store_true",
+        help="Decode shape/item SHP files again and replace the i####.png icons.",
+    )
+    args = parser.parse_args()
     print("loading items...")
     items = translate_item_fields(load_items())
     print(f"  {len(items)} unique items")
     print("loading icon map...")
     files = load_icon_files()
     print(f"  {len(files)} icon ids")
-    if ICON_DIR.exists() and any(ICON_DIR.glob("*.png")):
-        print("keeping existing bag icons")
+    have_icons = ICON_DIR.exists() and any(ICON_DIR.glob("*.png"))
+    if args.rebuild_icons or not have_icons:
+        if not EXTRACT.exists():
+            print(f"no client extract at {EXTRACT}; left the icon pngs as they are")
+        else:
+            print("converting SHP icons...")
+            pngs = convert_all(EXTRACT, [ICON_DIR, SHARE_ICONS])
+            print(f"  {len(pngs)} pngs")
     else:
-        print("converting SHP icons...")
-        pngs = convert_all(EXTRACT, [ICON_DIR, SHARE_ICONS])
-        print(f"  {len(pngs)} pngs")
+        print("keeping existing bag icons")
     trees = Counter(i.get("tree", "") for i in items if i.get("tree"))
     print(f"  skill scrolls {sum(trees.values())}")
     for name, n in trees.most_common():
