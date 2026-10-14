@@ -11,8 +11,17 @@ Click a fashion, weapon, or mount row to put it on the dummy. Female-only clothe
 Rebuild the pages from `corpus/content.db`:
 
 ```
+py -3 -m pip install -r requirements.txt
 py -3 tools/build_item_wiki.py
 py -3 tools/extract_local_pd.py
 ```
 
-`extract_local_pd.py` reads an extracted client. Set `AO_EXTRACT` to that folder if it is not in the usual place.
+The build tools read client assets from the extracted client folder. `.env` provides the standard install-path default. To use a different extracted client folder on your machine, create `.env.local` in the project root with:
+
+```dotenv
+AO_EXTRACT="C:\path\to\your\extracted\client"
+```
+
+`.env.local` is ignored by Git, so machine-specific paths stay local. The process environment takes precedence over `.env.local`, which takes precedence over `.env`. When none provides `AO_EXTRACT`, the paper-doll extractor checks the usual Angels Online locations.
+
+The item and paper-doll builds translate non-English names and descriptions locally with `dl-translate` and its M2M100 model. On first use, the model weights (about 1.9 GB) are downloaded and cached by Hugging Face; subsequent translations run locally, without sending item text to a translation service. Translations are also cached in `corpus/item_translations_en.json`, so later builds only translate new strings. The model and its Python dependencies require additional disk space and memory.

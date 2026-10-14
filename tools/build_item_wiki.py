@@ -12,7 +12,9 @@ import xml.etree.ElementTree as ET
 from collections import Counter
 from pathlib import Path
 
+from client_paths import configured_extract
 from shp_icon import convert_all
+from translate_text import translate_item_fields
 
 ROOT = Path(__file__).resolve().parents[1]
 DB = ROOT / "corpus" / "content.db"
@@ -22,28 +24,7 @@ ICON_DIR = ROOT / "docs" / "icons"
 SHARE_ICONS = ROOT / "share" / "items" / "icons"
 DRESS_DIR = ROOT / "docs" / "dress"
 SHARE_DRESS = ROOT / "share" / "items" / "dress"
-def _extract_root() -> Path:
-    import os
-    env = os.environ.get("AO_EXTRACT")
-    candidates = []
-    if env:
-        candidates.append(Path(env))
-    home = Path.home()
-    candidates.extend([
-        home / "OneDrive" / "Desktop" / "Angels Online" / "extracted",
-        home / "Desktop" / "Angels Online" / "extracted",
-        Path(r"C:\Program Files (x86)\Angels Online\extracted"),
-    ])
-    for path in candidates:
-        if (path / "update26").exists() or (path / "UPDATE26").exists():
-            return path
-    for path in candidates:
-        if path.exists():
-            return path
-    return candidates[-1]
-
-
-EXTRACT = _extract_root()
+EXTRACT = configured_extract() or Path(r"C:\Program Files (x86)\Angels Online\extracted")
 
 TABLES = ("item", "item2", "item3", "item4", "item5", "item6", "item7", "item8", "item9")
 JUNK_NAME = re.compile(r"^(基本名稱|名稱|name|編號)$", re.I)
@@ -986,7 +967,7 @@ HTML = r"""<!doctype html>
 
 def main() -> None:
     print("loading items...")
-    items = load_items()
+    items = translate_item_fields(load_items())
     print(f"  {len(items)} unique items")
     print("loading icon map...")
     files = load_icon_files()

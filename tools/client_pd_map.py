@@ -1,25 +1,25 @@
 """CHARDEF.XML + char*.obd lookups, same path as angelsonline.wiki."""
 from __future__ import annotations
 
-import os
 import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+from client_paths import configured_extract
 from shp_icon import PAK_ORDER
 
 
 def _extract_root() -> Path:
-    """First extracted client that exists. AO_EXTRACT overrides the search."""
-    candidates = []
-    env = os.environ.get("AO_EXTRACT")
-    if env:
-        candidates.append(Path(env))
-    candidates.extend([
+    """Use AO_EXTRACT when configured; otherwise find a standard installation."""
+    configured = configured_extract()
+    if configured is not None:
+        return configured
+
+    candidates = [
         Path.home() / "OneDrive" / "Desktop" / "Angels Online" / "extracted",
         Path.home() / "Desktop" / "Angels Online" / "extracted",
         Path(r"C:\Program Files (x86)\Angels Online\extracted"),
-    ])
+    ]
     existing = [cand for cand in candidates if cand.is_dir()]
     for cand in existing:
         if (cand / "update26").is_dir() or (cand / "UPDATE26").is_dir():
