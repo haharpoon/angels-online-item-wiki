@@ -71,7 +71,27 @@ def decode_frame(data: bytes, start: int, pal: list[tuple[int, int, int]]) -> tu
     return img, hx, hy
 
 
+# Blank sheets the client ships in place of a real animation. They are not frames.
+PLACEHOLDER_SIZE = (800, 600)
+
+
+def frame_header_size(data: bytes, start: int) -> tuple[int, int] | None:
+    if start + 28 > len(data) or data[start:start + 4] != b"TLHS":
+        return None
+    return struct.unpack_from("<II", data, start + 20)
+
+
+def is_placeholder_size(width: int, height: int) -> bool:
+    """True for the 800×600 stand-in sheets (and anything at least that large)."""
+    return width >= PLACEHOLDER_SIZE[0] and height >= PLACEHOLDER_SIZE[1]
+
+
 def decode_wait(path: Path) -> list[dict] | None:
+    """Decode a 15-frame Wait/Sit sheet.
+
+    A missing frame is not replaced with frame 0. An 800×600 placeholder is
+    rejected. Either case returns None so the caller can skip or fall back.
+    """
     data = path.read_bytes()
     if data[:4] != b"EWSP":
         return None
@@ -80,30 +100,58 @@ def decode_wait(path: Path) -> list[dict] | None:
     if len(starts) < 5:
         return None
     frames = []
+    placeholders = []
+    missing = []
     for i, start in enumerate(starts[:15]):
+        size = frame_header_size(data, start)
+        if size and is_placeholder_size(size[0], size[1]):
+            placeholders.append(i)
+            missing.append(i)
+            continue
         got = decode_frame(data, start, pal)
         if not got:
+            missing.append(i)
             continue
         img, hx, hy = got
+        if is_placeholder_size(img.size[0], img.size[1]):
+            placeholders.append(i)
+            missing.append(i)
+            continue
         phase, direction = divmod(i, 5)
         frames.append({
             "index": i, "phase": phase, "direction": direction,
             "image": img, "anchorX": hx, "anchorY": hy,
             "width": img.size[0], "height": img.size[1],
         })
-    return frames or None
+    if placeholders:
+        print(f"reject {path.name}: placeholder frame(s) {placeholders} ({PLACEHOLDER_SIZE[0]}x{PLACEHOLDER_SIZE[1]})")
+    if missing or len(frames) != 15:
+        if not placeholders:
+            print(f"reject {path.name}: {len(frames)} usable frames, not padding the rest with frame 0")
+        return None
+    return frames
 
 
-def pack_atlas(frames: list[dict]) -> tuple[Image.Image, list[dict], int, int]:
+def pack_atlas(frames: list[dict]) -> tuple[Image.Image, list[dict], int, int] | None:
+    """Pack 15 real frames. Returns None instead of cloning frame 0 into gaps."""
+    if not frames:
+        print("reject atlas: no frames")
+        return None
+    if any(is_placeholder_size(f["width"], f["height"]) for f in frames):
+        print("reject atlas: 800x600 placeholder frame")
+        return None
     by_index = {f["index"]: f for f in frames}
+    missing = [i for i in range(15) if i not in by_index]
+    if missing:
+        print(f"reject atlas: missing frames {missing}; not padding with frame 0")
+        return None
     cell_w = max(f["width"] for f in frames)
     cell_h = max(f["height"] for f in frames)
     atlas = Image.new("RGBA", (cell_w * 5, cell_h * 3), (0, 0, 0, 0))
     meta = []
-    first = frames[0]
     for i in range(15):
         phase, direction = divmod(i, 5)
-        src = by_index.get(i) or first
+        src = by_index[i]
         x, y = direction * cell_w, phase * cell_h
         atlas.paste(src["image"], (x, y), src["image"])
         meta.append({

@@ -35,6 +35,13 @@
   let customUrl = "";
   let applyingHash = false;
 
+  function displayName(rec) {
+    if (!rec) return "";
+    if (rec.name && /[A-Za-z]/.test(rec.name)) return rec.name;
+    const alias = (rec.aliases || []).find(n => /[A-Za-z]/.test(n));
+    return alias || rec.name || "";
+  }
+
   function wornId(slot) {
     const entry = worn[slot];
     if (!entry) return null;
@@ -125,10 +132,11 @@
       tinted[cacheKey] = (async () => {
         const base = await loadImage(url);
         const maskUrl = (window.PD_TINT_MASKS || {})[key];
-        const source = maskUrl ? await loadImage(maskUrl) : base;
+        // A sprite with no mask is not skin. Tinting the whole sheet recolours gold and leather.
+        if (!maskUrl) return base;
+        const source = await loadImage(maskUrl);
         const tintedLayer = source ? recolor(source, color) : null;
-        if (!tintedLayer) return base;
-        if (!base || source === base) return tintedLayer;
+        if (!tintedLayer || !base) return base;
         const c = document.createElement("canvas");
         c.width = base.naturalWidth || base.width;
         c.height = base.naturalHeight || base.height;
@@ -153,12 +161,23 @@
     });
   }
 
+  function canonicalSlot(slot) {
+    return SLOT_WIKI[slot] || slot;
+  }
+
   function equipPlace(id, rec, place) {
-    const slots = (place.occupies || ["head"]).map(s => SLOT_WIKI[s] || s);
+    const slots = (place.occupies || ["head"]).map(canonicalSlot);
+    if (rec.flags && rec.flags.twoHanded && slots.indexOf("off") < 0) slots.push("off");
     const doomed = new Set();
     slots.forEach(slot => {
       const other = wornId(slot);
       if (other) doomed.add(other);
+    });
+    ["main", "off"].forEach(slot => {
+      if (slots.indexOf(slot) < 0) return;
+      const partner = wornId(slot === "main" ? "off" : "main");
+      const partnerRec = partner ? pdFind(partner) : null;
+      if (partnerRec && partnerRec.flags && partnerRec.flags.twoHanded) doomed.add(partner);
     });
     doomed.forEach(clearItem);
     if (rec.flags && rec.flags.twoHanded) clearItem(wornId("off"));
@@ -187,6 +206,10 @@
       });
       if (rec.flags && rec.flags.headCover === "full") fullHead = true;
     });
+    const mainRec = wornId("main") ? pdFind(wornId("main")) : null;
+    if (mainRec && mainRec.flags && mainRec.flags.twoHanded && wornId("off") !== wornId("main")) {
+      delete map.off;
+    }
     if (fullHead) delete map.hair;
     return {
       map,
@@ -307,6 +330,12 @@
       const id = wornId(slot);
       if (id) loadout[slot] = id;
     });
+    const rideId = wornId("ride");
+    if (rideId) {
+      const rideRec = pdFind(rideId);
+      const mode = rideRec && rideRec.ride && rideRec.ride.layerMode;
+      loadout[mode === "robot" ? "mecha" : "mount"] = rideId;
+    }
     return {
       v: 2,
       sex: snap.sex,
@@ -365,7 +394,7 @@
     box.innerHTML = SLOT_ORDER.map(slot => {
       const id = wornId(slot);
       const rec = id ? pdFind(id) : null;
-      const label = rec ? ((rec.aliases && rec.aliases.find(n => /[A-Za-z]/.test(n))) || rec.name) : "Empty";
+      const label = rec ? (displayName(rec) || "Empty") : "Empty";
       const places = rec && rec.placements && rec.placements.length > 1 ? rec.placements : [];
       const current = wornPlace(slot);
       const hands = places.length
@@ -588,7 +617,7 @@
       if (rec.sexes && rec.sexes.length && rec.sexes.indexOf(snap.sex) < 0) applySex(rec.sexes[0]);
     }
     await paint();
-    const pretty = (rec.aliases && rec.aliases.find(n => /[A-Za-z]/.test(n))) || rec.name || name || id;
+    const pretty = displayName(rec) || name || id;
     dollMeta.textContent = (already ? "Removed " : "Wearing ") + pretty + " · /item " + id;
     syncLink();
     renderSlots();
@@ -625,18 +654,31 @@
     if (bg) bg.value = snap.background;
     Object.keys(worn).forEach(k => delete worn[k]);
     const loadout = data.loadout && typeof data.loadout === "object" ? data.loadout : {};
-    SLOT_ORDER.forEach(slot => {
-      if (!Object.prototype.hasOwnProperty.call(loadout, slot)) return;
-      const id = Number(loadout[slot]);
+    function claim(slotKey) {
+      if (!Object.prototype.hasOwnProperty.call(loadout, slotKey)) return;
+      const slot = canonicalSlot(slotKey);
+      if (SLOT_ORDER.indexOf(slot) < 0) return;
+      const id = Number(loadout[slotKey]);
       const rec = pdFind(id);
       if (!rec) return;
-      const place = (rec.placements || []).find(p => (p.occupies || []).map(s => SLOT_WIKI[s] || s).includes(slot))
+      const place = (rec.placements || []).find(p => (p.occupies || []).map(canonicalSlot).includes(slot))
         || (rec.placements || [])[0];
       if (!place) return;
-      const slots = (place.occupies || []).map(s => SLOT_WIKI[s] || s);
+      const slots = (place.occupies || []).map(canonicalSlot);
+      if (rec.flags && rec.flags.twoHanded && slots.indexOf("off") < 0) slots.push("off");
       if (slots.indexOf(slot) < 0) return;
+      // A two-handed weapon already sitting in main+off keeps the off hand. Don't draw both.
+      if (slots.some(s => {
+        const cur = wornId(s);
+        return cur && cur !== id;
+      })) return;
       slots.forEach(s => { worn[s] = { id: id, placementId: place.id }; });
-    });
+    }
+    SLOT_ORDER.forEach(claim);
+    if (!wornId("ride")) {
+      if (Object.prototype.hasOwnProperty.call(loadout, "mecha")) claim("mecha");
+      else if (Object.prototype.hasOwnProperty.call(loadout, "mount")) claim("mount");
+    }
     Object.keys(tinted).forEach(k => delete tinted[k]);
     fillControls();
     applyingHash = false;

@@ -16,6 +16,8 @@ py -3 tools/build_item_wiki.py
 py -3 tools/extract_local_pd.py
 ```
 
+`extract_local_pd.py` reads `AO_EXTRACT` (see below). It is the paper-doll rebuild: doll rows for 紙娃娃 only, the ride path for mounts and mecha, and each normal clothes or weapon type's own component. It exits with an error if a catalog sprite has no PNG under `docs/pd/sprites`, or if an atlas is an 800×600 placeholder. Re-run that command after the client extract is in place so those sheets are decoded. `py -3 tools/extract_local_pd.py --repair` only retints and relinks ids already in the catalog; it does not read the client.
+
 The build tools read client assets from the extracted client folder. `.env` provides the standard install-path default. To use a different extracted client folder on your machine, create `.env.local` in the project root with:
 
 ```dotenv
