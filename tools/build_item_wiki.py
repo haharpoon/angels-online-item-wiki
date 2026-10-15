@@ -144,6 +144,150 @@ GROUP_ORDER = [
 ]
 
 
+# Menu labels for paper-doll clothes. Gloves is also an armor kind; the
+# fashion path forces group Fashion so the two lists stay apart.
+FASHION_MENU_KIND = {
+    "shoes": "Shoes",
+    "gloves": "Gloves",
+    "hats": "Hats",
+    "back": "Back",
+    "outfits": "Outfits",
+    "face": "Face",
+    "hair": "Hair",
+    "acc": "Accessories",
+}
+FASHION_MENU_KINDS = set(FASHION_MENU_KIND.values())
+
+# First match wins. Shoes and gloves beat a set-name word (Wing Boots, Dress
+# Gloves). Hats beat wings (Wing Hat). Bags, rifles, guns and surfboards are
+# Back. A tail cape, charm, or hair ornament is an accessory even when the
+# rest of the name says hood, gown, or hair.
+_FASHION_EN = [
+    ("acc", re.compile(
+        r"\bcharms?\b|\bscar(?:f|ves)\b|hair\s*ornaments?|\bhairbands?\b|\bhairpins?\b"
+        r"|\bhalos?\b|\bearmuffs?\b|\bbracelets?\b|\bbrooch(?:es)?\b|\bbadges?\b|tail\s+capes?",
+        re.I,
+    )),
+    ("shoes", re.compile(
+        r"\bshoes?\b|\bboots?\b|\bsandals?\b|\bslippers?\b|\bsneakers?\b|\bgeta\b"
+        r"|\bclogs?\b|\bheels?\b|\bloafers?\b|\bspikes?\b|\bfootwear\b|\bsocks?\b",
+        re.I,
+    )),
+    ("gloves", re.compile(r"\bgloves?\b|\bgauntlets?\b|\bmittens?\b|\bmitts?\b", re.I)),
+    ("face", re.compile(
+        r"\bmasks?\b|\bglasses\b|\bgoggles\b|\bsunglasses\b|\bspectacles?\b|\bbibs?\b"
+        r"|\bearrings?\b|\bbeards?\b|\bmonocles?\b",
+        re.I,
+    )),
+    ("hats", re.compile(
+        r"\bhats?\b|\bhelms?\b|\bhelmets?\b|\bcirclets?\b|\btiaras?\b|\bcrowns?\b|\bhorns?\b"
+        r"|\bcaps?\b|\bberets?\b|\bhoods?\b|\bheadbands?\b|\bheaddress(?:es)?\b|\bbonnets?\b|\bears\b",
+        re.I,
+    )),
+    ("hair", re.compile(
+        r"\bhairs?\b|\bhairstyles?\b|\bponytails?\b|\bwigs?\b|\bbobs?\b|\bbangs?\b|\bbuns?\b",
+        re.I,
+    )),
+    ("outfits", re.compile(
+        r"\bsundress(?:es)?\b|\bdress(?:es)?\b|\bcoats?\b|\brobes?\b|\bsuits?\b|\bshirts?\b"
+        r"|\bjackets?\b|\bskirts?\b|\bpants\b|\bgowns?\b|\bjerseys?\b|\bkimonos?\b"
+        r"|\buniforms?\b|\barmou?rs?\b|\bclothes\b|\bclothing\b|\btunics?\b|\bvests?\b|\boutfits?\b",
+        re.I,
+    )),
+    ("back", re.compile(
+        r"\bbags?\b|\bbackpacks?\b|\bwings?\b|\bcapes?\b|\bcloaks?\b|\bmantles?\b"
+        r"|\brifles?\b|\bguns?\b|\bsurfboards?\b|surf\s*boards?",
+        re.I,
+    )),
+]
+# A body-armor gown that mentions wings is still a gown. These words are the
+# back pieces that were filed under head or body by mistake.
+_BACK_GEAR = re.compile(
+    r"\bbags?\b|\bbackpacks?\b|\bcapes?\b|\bcloaks?\b|\bmantles?\b"
+    r"|\brifles?\b|\bguns?\b|\bsurfboards?\b|surf\s*boards?",
+    re.I,
+)
+_FASHION_CJK = [
+    ("shoes", re.compile(r"靴|シューズ|サンダル|下駄|スパイク")),
+    ("gloves", re.compile(r"手套|グローブ")),
+    ("face", re.compile(r"眼鏡|眼镜|面具|口罩|ゴーグル")),
+    ("hats", re.compile(r"ヘッドドレス|帽子|頭盔|头盔")),
+    ("hair", re.compile(r"髪型|髮型|发型|ウィッグ")),
+    ("back", re.compile(r"背包|披風|披风|翅膀|マント|サーフボード|ライフル|銃")),
+    ("outfits", re.compile(r"ワンピース|ドレス|浴衣|着物")),
+    ("acc", re.compile(r"髪飾り|髮飾|ブローチ|スカーフ")),
+]
+
+
+def _fashion_match(text: str, rules) -> str | None:
+    for cat, pat in rules:
+        if pat.search(text or ""):
+            return cat
+    return None
+
+
+def fashion_category(name: str, extra: str = "", layers=None) -> str | None:
+    """Where a clothes item sits in the fashion menu.
+
+    A drawn feet, hands, or back layer wins. Head and body layers do not:
+    the raw data files gloves, suits, and bags as head. The name (English,
+    then Chinese or Japanese) decides those, and rifles, guns, surfboards,
+    and bags stay on Back. The raw type is only used by the caller when this
+    returns None.
+    """
+    drawn = {str(layer) for layer in (layers or set()) if layer}
+    if drawn == {"feet"}:
+        return "shoes"
+    if drawn == {"hands"}:
+        return "gloves"
+    if drawn == {"back"}:
+        return "back"
+    cat = _fashion_match(name, _FASHION_EN) or _fashion_match(name, _FASHION_CJK)
+    if cat:
+        return cat
+    if extra:
+        cat = _fashion_match(extra, _FASHION_EN) or _fashion_match(extra, _FASHION_CJK)
+        if cat:
+            return cat
+    if drawn == {"body"}:
+        return "outfits"
+    if drawn == {"head"}:
+        return "hats"
+    return None
+
+
+def load_sprite_layers() -> dict[int, set[str]]:
+    """Item id -> paper-doll layers that item actually draws, when the catalog has it."""
+    path = ROOT / "docs" / "pd" / "client_pd_preview.json"
+    if not path.is_file():
+        return {}
+    catalog = json.loads(path.read_text(encoding="utf-8"))
+    found: dict[int, set[str]] = {}
+    for item in catalog.get("items") or []:
+        layers: set[str] = set()
+        for sex in (item.get("components") or {}).values():
+            if not isinstance(sex, dict):
+                continue
+            for pose in sex.values():
+                if isinstance(pose, dict):
+                    layers.update(layer for layer, key in pose.items() if key)
+        ids = [item.get("item_id"), *(item.get("itemIds") or [])]
+        for iid in ids:
+            if iid is None:
+                continue
+            found.setdefault(int(iid), set()).update(layers)
+    return found
+
+
+def fashion_group(base_kind: str, kind: str) -> str | None:
+    """Fashion menu kinds stay in Fashion. Armor gloves stay in Armor."""
+    if kind not in FASHION_MENU_KINDS:
+        return None
+    if kind == "Gloves" and base_kind not in ("Fashion",) and not str(base_kind).startswith("Fashion"):
+        return None
+    return "Fashion"
+
+
 NAME_KIND = [
     (r"advancement\s+stone", "Advancement Stone"),
     (r"skill\s+leveling\s+stone", "Skill Leveling Stone"),
@@ -164,7 +308,7 @@ NAME_KIND = [
 ]
 
 
-def refine_kind(name: str, kind: str, desc: str = "") -> str:
+def refine_kind(name: str, kind: str, desc: str = "", extra: str = "", layers=None) -> str:
     """Every group gets subtypes. Catch-alls (General, Fashion, Hidden, Gift) split by name."""
     n = f"{name} {desc}".lower()
     for pat, new_kind in NAME_KIND:
@@ -193,19 +337,23 @@ def refine_kind(name: str, kind: str, desc: str = "") -> str:
         if "box" in n or "chest" in n or "pack" in n:
             return "Gift"
         return "General" if kind == "Timed Item" else kind
-    if kind == "Fashion":
+    if kind == "Fashion" or str(kind).startswith("Fashion "):
         if any(w in n for w in ("shapeshift", "transform", "morph")):
             return "Shapeshift"
-        if any(w in n for w in ("wing", "halo")):
-            return "Fashion Wings"
-        if any(w in n for w in ("hat", "helm", "circlet", "tiara", "horn", "crown", "ear", "hair")):
-            return "Fashion Head"
-        if any(w in n for w in ("dress", "coat", "robe", "suit", "shirt", "armor", "cloth")):
-            return "Fashion Body"
-        if any(w in n for w in ("shoe", "boot", "sandal")):
-            return "Fashion Feet"
-        if any(w in n for w in ("glove", "sleeve", "gauntlet", "hand")):
-            return "Fashion Hands"
+        # Name before the raw Fashion Head label. Head and body sprites are
+        # not a slot: the client marks gloves and dresses as head too.
+        cat = fashion_category(name, extra, layers)
+        if cat:
+            return FASHION_MENU_KIND[cat]
+        return "Fashion"
+    if kind in ("Headgear", "Body Armor"):
+        cat = fashion_category(name, extra, layers)
+        # Wings in a plate or gown name are not a back slot. Bags, capes,
+        # mantles, rifles, guns and surfboards are.
+        if cat in {"face", "acc"} or (
+            cat == "back" and (kind == "Headgear" or _BACK_GEAR.search(name or ""))
+        ):
+            return FASHION_MENU_KIND[cat]
         return kind
     if kind in ("Hidden", "Gift"):
         if any(w in n for w in ("ore", "iron", "copper", "silver", "gold", "ingot")):
@@ -378,6 +526,7 @@ def load_items() -> list[dict]:
         raise SystemExit(f"missing {DB}")
     con = sqlite3.connect(DB)
     magic_ranks, magic_skills = load_magic_index(con)
+    layers_by_id = load_sprite_layers()
     merged: dict[int, dict] = {}
     for table in TABLES:
         cols = {c[1] for c in con.execute(f"pragma table_info({table})")}
@@ -398,8 +547,9 @@ def load_items() -> list[dict]:
             prefix = clean(rec.get("原型名稱"))
             display = f"{prefix} {name}".strip() if prefix and prefix.lower() not in name.lower() else name
             desc = clean(rec.get("說明定義"))[:180]
-            kind = refine_kind(display, CAT_EN.get(zh, zh or "Unknown"), desc)
-            group = GROUP_OF.get(kind, "Other")
+            base_kind = CAT_EN.get(zh, zh or "Unknown")
+            kind = refine_kind(display, base_kind, desc, layers=layers_by_id.get(iid))
+            group = fashion_group(base_kind, kind) or GROUP_OF.get(kind, "Other")
             row = {
                 "id": iid,
                 "name": display,
