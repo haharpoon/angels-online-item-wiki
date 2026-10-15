@@ -34,7 +34,8 @@ def rgb555(c: int) -> tuple[int, int, int]:
 
 
 def make_tlhs(width: int, height: int, runs: list[list[tuple[int, int, int]]],
-              pixels: bytes, colours: list[int], pal_size: int, pad: bytes = b"") -> bytes:
+              pixels: bytes, colours: list[int], pal_size: int, pad: bytes = b"",
+              depth: int = 0, bpp: int = 1) -> bytes:
     """Build one TLHS icon. Each run is (x, width, extra bytes after its pixels)."""
     span_len = sum(8 * len(row) for row in runs)
     pal_off = 80 + height * 4 + span_len
@@ -47,12 +48,12 @@ def make_tlhs(width: int, height: int, runs: list[list[tuple[int, int, int]]],
         row_off.append(80 + height * 4 + len(spans))
         for x, run_width, extra in row:
             spans += struct.pack("<hhI", x, run_width, px_off + cursor)
-            cursor += run_width + extra
+            cursor += run_width * bpp + extra
     if len(pixels) < cursor:
         pixels += bytes(cursor - len(pixels))
     header = bytearray(80)
     header[0:4] = b"TLHS"
-    struct.pack_into("<IIIII", header, 8, 1, pal_size, 0, width, height)
+    struct.pack_into("<IIIII", header, 8, 1, pal_size, depth, width, height)
     struct.pack_into("<I", header, 44, px_off)
     struct.pack_into("<I", header, 64, pal_off)
     offsets = b"".join(struct.pack("<I", off) for off in row_off)
@@ -131,7 +132,80 @@ def check_decoder_rules() -> None:
         raise SystemExit("RGB565 expansion is wrong")
     if rgb555(GREEN) == (0, 255, 0):
         raise SystemExit("the green test word is not distinct from RGB555")
-    print("decoder rules ok: run width, edge clip, palette end, RGB565")
+
+    # Depth 16: each pixel is one RGB565 word. A zero word is a hole, and the
+    # next byte is the next pixel's low byte, not a second palette index.
+    direct = make_tlhs(
+        4, 1,
+        [[(0, 3, 0)]],
+        struct.pack("<HHH", 0x0000, RED, BLUE),
+        [],
+        pal_size=0,
+        depth=16,
+        bpp=2,
+    )
+    img = decode_shp_bytes(direct, front=False)
+    assert img is not None
+    assert_pixels(img, {
+        (0, 0): (0, 0, 0, 0),
+        (1, 0): (255, 0, 0, 255),
+        (2, 0): (0, 0, 255, 255),
+        (3, 0): (0, 0, 0, 0),
+    }, "rgb565 direct")
+
+    clipped16 = make_tlhs(
+        3, 1,
+        [[(-1, 2, 0)]],
+        struct.pack("<HH", GREEN, RED),
+        [],
+        pal_size=0,
+        depth=16,
+        bpp=2,
+    )
+    img = decode_shp_bytes(clipped16, front=False)
+    assert img is not None
+    assert_pixels(img, {
+        (0, 0): (255, 0, 0, 255),
+        (1, 0): (0, 0, 0, 0),
+    }, "rgb565 left edge")
+
+    # No colour count and no palette bytes is the same direct format.
+    bare = make_tlhs(
+        2, 1,
+        [[(0, 2, 0)]],
+        struct.pack("<HH", 0x0000, GREEN),
+        [],
+        pal_size=0,
+        depth=0,
+        bpp=2,
+    )
+    img = decode_shp_bytes(bare, front=False)
+    assert img is not None and img.getpixel((0, 0)) == (0, 0, 0, 0)
+    assert img.getpixel((1, 0)) == (0, 255, 0, 255), "zero colour count with an empty palette"
+
+    # A zero colour count that still has palette bytes stays indexed.
+    kept = make_tlhs(
+        1, 1,
+        [[(0, 1, 0)]],
+        bytes([1]),
+        [0x0000, RED],
+        pal_size=0,
+        depth=0,
+    )
+    img = decode_shp_bytes(kept, front=False)
+    assert img is not None and img.getpixel((0, 0)) == (255, 0, 0, 255), "palette gap stays indexed"
+
+    unknown = make_tlhs(
+        1, 1,
+        [[(0, 1, 0)]],
+        bytes([1]),
+        [0x0000, RED],
+        pal_size=2,
+        depth=24,
+    )
+    if decode_shp_bytes(unknown, front=False, source="i0343.shp") is not None:
+        raise SystemExit("unknown depth was decoded")
+    print("decoder rules ok: run width, edge clip, palette end, RGB565, 16-bit icons")
 
 
 def load_page() -> tuple[dict[str, str], list[dict]]:

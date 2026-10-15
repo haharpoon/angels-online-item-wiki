@@ -3,10 +3,17 @@
 Last-pak-wins, same order as extract_content.py. Multi-direction sheets
 keep the cell with the most pixels in the upper half (facing the camera);
 the in-game default is often the back view.
+
+Pixel format comes from the header. A colour depth of 16, or a colour count
+of 0 with no palette bytes before the pixels, is direct RGB565 (2 bytes per
+pixel, and a zero word is transparent). Anything else with a depth other than
+0 or 8 is refused.
 """
 from __future__ import annotations
 
+import argparse
 import struct
+import sys
 from pathlib import Path
 
 from PIL import Image
@@ -70,27 +77,100 @@ def palette_span(data: bytes, pal_off: int, px_off: int, pal_size: int) -> tuple
     return pal_off, min(len(data), pal_off + 512), "no pixel offset; capped at 256 colours"
 
 
-def decode_shp_bytes(data: bytes, front: bool = True) -> Image.Image | None:
-    if data[:4] != b"TLHS" or len(data) < 80:
+INDEX8 = "index8"
+RGB565 = "rgb565"
+
+
+def header_fields(data: bytes) -> dict | None:
+    """The TLHS fields that choose the pixel format. None when it is not TLHS."""
+    if len(data) < 80 or data[:4] != b"TLHS":
         return None
-    frames, pal_size, _flag, w, h = struct.unpack_from("<IIIII", data, 8)
-    px_off = struct.unpack_from("<I", data, 44)[0]
-    pal_off = struct.unpack_from("<I", data, 64)[0]
+    frames, pal_size, depth, width, height = struct.unpack_from("<IIIII", data, 8)
+    return {
+        "version": struct.unpack_from("<I", data, 4)[0],
+        "frames": frames,
+        "pal_size": pal_size,
+        "depth": depth,
+        "width": width,
+        "height": height,
+        "px_off": struct.unpack_from("<I", data, 44)[0],
+        "pal_off": struct.unpack_from("<I", data, 64)[0],
+    }
+
+
+def icon_format(fields: dict) -> str | None:
+    """index8, rgb565, or None when the depth is not one this decoder knows.
+
+    Depth 16 is direct RGB565. Depth 0 or 8 indexes the RGB565 palette, except
+    when the header declares no colours and there are no palette bytes before
+    the pixels: that sheet is direct RGB565 as well. A zero word is transparent
+    in both formats (palette index 0, or RGB565 0x0000). RGB565 has no spare
+    alpha bit, so a visible black is a non-zero near-black.
+    """
+    depth = int(fields["depth"])
+    pal_size = int(fields["pal_size"])
+    if depth == 16:
+        return RGB565
+    if depth not in (0, 8):
+        return None
+    gap = 0
+    if fields["px_off"] > fields["pal_off"]:
+        gap = int(fields["px_off"]) - int(fields["pal_off"])
+    if pal_size == 0 and gap == 0:
+        return RGB565
+    return INDEX8
+
+
+def decode_shp_bytes(
+    data: bytes,
+    front: bool = True,
+    fmt: str | None = None,
+    source: str = "",
+) -> Image.Image | None:
+    fields = header_fields(data)
+    if fields is None:
+        return None
+    frames = int(fields["frames"])
+    pal_size = int(fields["pal_size"])
+    w = int(fields["width"])
+    h = int(fields["height"])
+    px_off = int(fields["px_off"])
+    pal_off = int(fields["pal_off"])
+    detected = icon_format(fields)
+    if fmt is None:
+        fmt = detected
+    if fmt not in (INDEX8, RGB565):
+        where = source or "icon"
+        print(
+            f"warning: {where}: unknown icon pixel format "
+            f"depth={fields['depth']} pal_size={pal_size}",
+            file=sys.stderr,
+        )
+        return None
     if w <= 0 or h <= 0 or w > 512 or h > 512:
         return None
-    if pal_off >= len(data) or 80 + h * 4 > len(data):
+    if 80 + h * 4 > len(data):
         return None
+    if fmt == INDEX8 and (pal_off >= len(data) or pal_off < 0):
+        return None
+    stride = 2 if fmt == RGB565 else 1
     palette = [(0, 0, 0)] * 256
-    pal_start, pal_end, _why = palette_span(data, pal_off, px_off, pal_size)
-    n = min(256, max(0, (pal_end - pal_start) // 2))
-    for i in range(n):
-        palette[i] = rgb565(struct.unpack_from("<H", data, pal_start + i * 2)[0])
+    if fmt == INDEX8:
+        pal_start, pal_end, _why = palette_span(data, pal_off, px_off, pal_size)
+        n = min(256, max(0, (pal_end - pal_start) // 2))
+        for i in range(n):
+            palette[i] = rgb565(struct.unpack_from("<H", data, pal_start + i * 2)[0])
 
+    table_end = 80 + h * 4
+    if fmt == RGB565 and pal_off <= table_end:
+        span_limit = px_off if px_off > table_end else len(data)
+    else:
+        span_limit = pal_off
     offs = [struct.unpack_from("<I", data, 80 + i * 4)[0] for i in range(h)]
     rows = []
     for y in range(h):
         start = offs[y]
-        end = offs[y + 1] if y + 1 < h else pal_off
+        end = offs[y + 1] if y + 1 < h else span_limit
         if start < 0 or start > len(data):
             rows.append([])
             continue
@@ -108,7 +188,7 @@ def decode_shp_bytes(data: bytes, front: bool = True) -> Image.Image | None:
             if count <= 0 or src_i < 0:
                 continue
             if x0 < 0:
-                src_i += -x0
+                src_i += (-x0) * stride
                 count += x0
                 x0 = 0
             if x0 >= w or count <= 0:
@@ -118,19 +198,26 @@ def decode_shp_bytes(data: bytes, front: bool = True) -> Image.Image | None:
                 count = w - x0
             if src_i >= len(data):
                 continue
-            if src_i + count > len(data):
-                count = len(data) - src_i
+            byte_count = count * stride
+            if src_i + byte_count > len(data):
+                count = (len(data) - src_i) // stride
             for k in range(count):
-                idx = data[src_i + k]
-                if idx == 0:
-                    continue
-                r, g, b = palette[idx]
+                if fmt == RGB565:
+                    word = struct.unpack_from("<H", data, src_i + k * 2)[0]
+                    if word == 0:
+                        continue
+                    r, g, b = rgb565(word)
+                else:
+                    idx = data[src_i + k]
+                    if idx == 0:
+                        continue
+                    r, g, b = palette[idx]
                 pix[x0 + k, _y] = (r, g, b, 255)
     return pick_front(img, frames) if front else img
 
 
 def decode_shp(path: Path) -> Image.Image | None:
-    return decode_shp_bytes(path.read_bytes())
+    return decode_shp_bytes(path.read_bytes(), source=path.name)
 
 
 def _opaque_top(cell: Image.Image) -> int:
@@ -189,14 +276,97 @@ def convert_all(extract: Path, dests: list[Path]) -> dict[str, str]:
     """Write PNGs named i0001.png. Returns stem -> filename."""
     files = collect_item_shps(extract)
     written: dict[str, str] = {}
+    counts = {INDEX8: 0, RGB565: 0, "unknown": 0, "failed": 0}
     for dest in dests:
         dest.mkdir(parents=True, exist_ok=True)
     for stem, src in files.items():
-        img = decode_shp(src)
+        data = src.read_bytes()
+        fields = header_fields(data)
+        kind = icon_format(fields) if fields else None
+        if kind is None:
+            counts["unknown"] += 1
+        else:
+            counts[kind] += 1
+        img = decode_shp_bytes(data, source=src.name)
         if img is None:
+            if kind is not None:
+                counts["failed"] += 1
             continue
         name = f"{stem}.png"
         for dest in dests:
             img.save(dest / name, optimize=True)
         written[stem] = name
+    print(
+        f"icons: {counts[INDEX8]} palette, {counts[RGB565]} rgb565, "
+        f"{counts['unknown']} unknown format, {counts['failed']} not written"
+    )
     return written
+
+
+def debug_shp(path: Path, out: Path | None = None) -> None:
+    """Print one icon's header and write the chosen decode plus both formats."""
+    data = path.read_bytes()
+    fields = header_fields(data)
+    if fields is None:
+        print(f"{path}: not a TLHS icon")
+        return
+    kind = icon_format(fields)
+    print(f"{path}")
+    print(
+        f"  version={fields['version']} frames={fields['frames']} "
+        f"pal_size={fields['pal_size']} depth={fields['depth']} "
+        f"size={fields['width']}x{fields['height']}"
+    )
+    print(f"  pixel offset={fields['px_off']} palette offset={fields['pal_off']}")
+    if kind == RGB565:
+        print("  format: rgb565, 2 bytes per pixel, 0x0000 is transparent")
+    elif kind == INDEX8:
+        print("  format: 8-bit palette index, index 0 is transparent")
+    else:
+        print(
+            f"  format: unknown (depth {fields['depth']}). "
+            "Not written by convert_all. Both previews are still saved here."
+        )
+    folder = out.parent if out else path.parent
+    folder.mkdir(parents=True, exist_ok=True)
+    stem = path.stem
+    chosen = folder / (out.name if out else f"{stem}.debug.png")
+    img = decode_shp_bytes(data, fmt=kind, source=path.name) if kind else None
+    if img is not None:
+        img.save(chosen)
+        print(f"  wrote {chosen}")
+    for forced, suffix in ((INDEX8, "index8"), (RGB565, "rgb565")):
+        preview = decode_shp_bytes(data, fmt=forced, source=path.name)
+        dest = folder / f"{stem}.{suffix}.png"
+        if preview is None:
+            print(f"  {suffix}: could not decode")
+            continue
+        preview.save(dest)
+        print(f"  wrote {dest}")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Inspect one TLHS item icon.")
+    parser.add_argument("shp", type=Path, help="Path to one .shp, for example i0343.shp")
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Print the header and write index8 and rgb565 previews.",
+    )
+    parser.add_argument("--out", type=Path, help="Where to write the chosen decode.")
+    args = parser.parse_args()
+    if not args.shp.is_file():
+        raise SystemExit(f"no such file: {args.shp}")
+    if args.debug or args.out:
+        debug_shp(args.shp, args.out)
+        return
+    img = decode_shp(args.shp)
+    if img is None:
+        raise SystemExit(f"could not decode {args.shp}")
+    dest = args.shp.with_suffix(".png")
+    img.save(dest)
+    print(dest)
+
+
+if __name__ == "__main__":
+    main()
