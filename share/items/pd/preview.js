@@ -23,6 +23,7 @@
 
   let PD = null;
   const worn = {};
+  let stashedBody = null;
   const images = {};
   const tinted = {};
   const snap = {
@@ -165,9 +166,54 @@
     return SLOT_WIKI[slot] || slot;
   }
 
+  function isShapeshiftRec(rec) {
+    return !!(rec && rec.flags && rec.flags.shapeshift);
+  }
+
+  function restoreStashedBody() {
+    if (!stashedBody || wornId("body")) return false;
+    const stash = stashedBody;
+    stashedBody = null;
+    const rec = pdFind(stash.id);
+    if (!rec) return false;
+    const place = placementFor(rec, stash.placementId);
+    worn.body = { id: stash.id, placementId: (place && place.id) || stash.placementId || "default" };
+    return true;
+  }
+
+  // (F)/(M) on the primary name is the sex tag. A name with no suffix is wearable by both.
+  function sexesFor(rec) {
+    const name = (rec && rec.name) || "";
+    const mark = /\(([FMfm])\)\s*$/.exec(name);
+    if (!mark) return ["male", "female"];
+    return [mark[1].toLowerCase() === "f" ? "female" : "male"];
+  }
+
+  function itemHasSprite(rec, place) {
+    if (!rec) return false;
+    const pose = shapeshiftWorn() ? "standing" : (wornId("ride") ? "mounted" : "standing");
+    const sexComps = (rec.components || {})[snap.sex] || {};
+    const comps = sexComps[pose] || {};
+    const standing = sexComps.standing || {};
+    return (place.layers || []).some(layer => comps[layer] || (pose === "mounted" && standing[layer]));
+  }
+
   function equipPlace(id, rec, place) {
     const slots = (place.occupies || ["head"]).map(canonicalSlot);
     if (rec.flags && rec.flags.twoHanded && slots.indexOf("off") < 0) slots.push("off");
+    if (slots.indexOf("body") >= 0) {
+      if (isShapeshiftRec(rec)) {
+        const cur = wornId("body");
+        const curRec = cur ? pdFind(cur) : null;
+        // Keep an existing stash when swapping one shapeshift for another.
+        if (cur && curRec && !isShapeshiftRec(curRec)) {
+          stashedBody = { id: cur, placementId: wornPlace("body") };
+        }
+      } else {
+        // A real outfit chosen while shifted (or normally) replaces any stash.
+        stashedBody = null;
+      }
+    }
     const doomed = new Set();
     slots.forEach(slot => {
       const other = wornId(slot);
@@ -224,9 +270,12 @@
       if (!rec) return;
       seen.add(slot + ":" + id + ":" + wornPlace(slot));
       const place = placementFor(rec, wornPlace(slot));
-      const comps = ((rec.components || {})[snap.sex] || {})[pose] || {};
+      const sexComps = (rec.components || {})[snap.sex] || {};
+      const comps = sexComps[pose] || {};
+      const standing = sexComps.standing || {};
       (place.layers || []).forEach(layer => {
         if (comps[layer]) map[layer] = comps[layer];
+        else if (pose === "mounted" && standing[layer]) map[layer] = standing[layer];
       });
       if (rec.flags && rec.flags.headCover === "full") fullHead = true;
     });
@@ -369,7 +418,8 @@
       height: snap.height,
       direction: (PD.directions[snap.direction] || {}).id || "front",
       background: snap.background || "studio",
-      loadout
+      loadout,
+      stashedBody: stashedBody ? { id: stashedBody.id, placementId: stashedBody.placementId || "" } : null
     };
   }
 
@@ -439,7 +489,10 @@
       btn.onclick = () => {
         const id = wornId(btn.dataset.slot);
         if (!id) return;
+        const rec = pdFind(id);
+        const restore = btn.dataset.slot === "body" && isShapeshiftRec(rec);
         clearItem(id);
+        if (restore) restoreStashedBody();
         dollMeta.textContent = "Removed " + btn.dataset.slot + ".";
         syncLink();
         paint();
@@ -630,27 +683,34 @@
       return;
     }
     const numeric = Number(id);
+    const place = (rec.placements && rec.placements[0]) || { id: "default", occupies: ["head"], layers: ["head"] };
     const already = Object.keys(worn).some(slot => wornId(slot) === numeric || wornId(slot) === rec.item_id);
     if (already) {
+      const wasShiftOnBody = isShapeshiftRec(rec) && Object.keys(worn).some(
+        slot => slot === "body" && (wornId(slot) === numeric || wornId(slot) === rec.item_id)
+      );
       clearItem(numeric);
       clearItem(rec.item_id);
       (rec.itemIds || []).forEach(clearItem);
+      if (wasShiftOnBody) restoreStashedBody();
     } else {
-      const place = (rec.placements && rec.placements[0]) || { id: "default", occupies: ["head"], layers: ["head"] };
       equipPlace(numeric, rec, place);
-      if (rec.sexes && rec.sexes.length && rec.sexes.indexOf(snap.sex) < 0) applySex(rec.sexes[0]);
+      const sexes = sexesFor(rec);
+      if (sexes.indexOf(snap.sex) < 0) applySex(sexes[0]);
     }
     await paint();
     const pretty = displayName(rec) || name || id;
     const shift = shapeshiftWorn();
     let note = "";
-    if (shift && rec.flags && rec.flags.shapeshift) {
+    if (shift && isShapeshiftRec(rec)) {
       const drawn = Object.keys(layers().map).length;
       note = drawn
         ? " · full character, other layers hidden"
         : " · full character, no sprite for this sex";
     } else if (shift && !already) {
       note = " · hidden while a shapeshift is worn";
+    } else if (!already && !itemHasSprite(rec, place)) {
+      note = " · no preview for this sex";
     }
     dollMeta.textContent = (already ? "Removed " : "Wearing ") + pretty + " · /item " + id + note;
     syncLink();
@@ -687,6 +747,16 @@
     }
     if (bg) bg.value = snap.background;
     Object.keys(worn).forEach(k => delete worn[k]);
+    stashedBody = null;
+    if (data.stashedBody && typeof data.stashedBody === "object" && data.stashedBody.id != null) {
+      const sid = Number(data.stashedBody.id);
+      if (sid && pdFind(sid)) {
+        stashedBody = { id: sid, placementId: data.stashedBody.placementId || "" };
+      }
+    } else if (data.stashedBody != null && data.stashedBody !== "") {
+      const sid = Number(data.stashedBody);
+      if (sid && pdFind(sid)) stashedBody = { id: sid, placementId: "" };
+    }
     const loadout = data.loadout && typeof data.loadout === "object" ? data.loadout : {};
     function claim(slotKey) {
       if (!Object.prototype.hasOwnProperty.call(loadout, slotKey)) return;
@@ -818,6 +888,7 @@
     const reset = document.querySelector("#dollReset");
     if (reset) reset.onclick = () => {
       Object.keys(worn).forEach(k => { delete worn[k]; });
+      stashedBody = null;
       snap.sex = "female"; snap.hair = 0; snap.hairColor = 2; snap.skinTone = 0;
       snap.height = "average"; snap.direction = 4; snap.phase = 0; snap.background = "studio";
       Object.keys(tinted).forEach(k => delete tinted[k]);
@@ -829,6 +900,7 @@
     const clear = document.querySelector("#dollClear");
     if (clear) clear.onclick = () => {
       Object.keys(worn).forEach(k => { delete worn[k]; });
+      stashedBody = null;
       dollMeta.textContent = "Cleared equipped items.";
       renderSlots();
       syncLink();
@@ -841,6 +913,7 @@
     const example = document.querySelector("#dollExample");
     if (example) example.onclick = async () => {
       Object.keys(worn).forEach(k => { delete worn[k]; });
+      stashedBody = null;
       applySex("female");
       snap.hair = 0; snap.hairColor = 2; snap.skinTone = 0;
       snap.height = "average"; snap.direction = 4;

@@ -613,11 +613,27 @@ def classify_local_item(it: dict, doll_ids: set[int]) -> str | None:
     return None
 
 
+_SEX_SUFFIX = re.compile(r"\(([FMfm])\)\s*$")
+
+
+def sex_from_primary_name(name: str) -> str | None:
+    """(F) or (M) at the end of the primary name. Aliases are not a sex tag."""
+    match = _SEX_SUFFIX.search(name or "")
+    if not match:
+        return None
+    return "female" if match.group(1).lower() == "f" else "male"
+
+
 def sexes_for(group: list[dict]) -> list[str]:
-    marks = {it.get("sex") or "" for it in group}
-    if marks == {"限女性"}:
+    """Sex comes from a (F) or (M) suffix on every primary name in the group.
+
+    The item-table 男女裝備 field is not a sex tag. One suffixed row does not
+    mark a merged group that also has an unsuffixed primary name.
+    """
+    marks = [sex_from_primary_name(it.get("name") or "") for it in group]
+    if marks and all(mark == "female" for mark in marks):
         return ["female"]
-    if marks == {"限男性"}:
+    if marks and all(mark == "male" for mark in marks):
         return ["male"]
     return ["male", "female"]
 

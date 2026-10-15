@@ -19,6 +19,7 @@ from extract_local_pd import (
     classify_local_item,
     derive_flexible,
     derive_two_handed,
+    sexes_for,
     hand_lists,
     hands_disagree,
     load_dolls,
@@ -267,6 +268,14 @@ def test_shapeshift_dolls_replace_the_character():
     assert REPORT.read_text(encoding="utf-8") == render_report(rows)
 
 
+def test_sex_comes_from_the_name_suffix():
+    assert sexes_for([{"name": "Hat (F)", "sex": "限男性"}]) == ["female"]
+    assert sexes_for([{"name": "Hair (m)"}]) == ["male"]
+    assert sexes_for([{"name": "Dress (F)"}, {"name": "Dress"}]) == ["male", "female"]
+    assert sexes_for([{"name": "Plain hat", "sex": "限女性"}]) == ["male", "female"]
+    assert sexes_for([{"name": "Sleek Hair (M)", "aliases": ["Something (F)"]}]) == ["male"]
+
+
 def test_pack_atlas_rejects_gaps_and_placeholders():
     partial = [{"index": i, "width": 8, "height": 8} for i in range(14)]
     assert pack_atlas(partial) is None
@@ -285,5 +294,6 @@ if __name__ == "__main__":
     test_english_name_preference()
     test_tint_defaults()
     test_shapeshift_dolls_replace_the_character()
+    test_sex_comes_from_the_name_suffix()
     test_pack_atlas_rejects_gaps_and_placeholders()
     print("ok")
