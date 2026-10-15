@@ -22,6 +22,7 @@ from extract_local_pd import (
     load_dolls,
     shadow_sheet_ids,
 )
+from report_shapeshift import REPORT, collect_shapeshift_candidates, render_report
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -157,6 +158,26 @@ def test_tint_defaults():
     assert choose_tint("hair", 0) == "hair"
 
 
+def test_shapeshift_dolls_replace_the_character():
+    """變身換圖 is a full-character sprite. A clothing doll and a colliding ride are not."""
+    dolls = load_dolls(DB)
+    melon = dolls[250]
+    assert melon["shapeshift"] is True
+    assert melon["parts"] == {"body": 1886}
+    assert dolls[264]["shapeshift"] is False
+    assert sum(1 for doll in dolls.values() if doll.get("shapeshift")) == 294
+    rows = collect_shapeshift_candidates()
+    by_id = {row["id"]: row for row in rows}
+    assert len(rows) == len(by_id) == 467
+    assert by_id[6308]["category"] == "Shapeshift"
+    assert by_id[6308]["doll_id"] == 250
+    assert by_id[3891]["category"] == "Fashion"
+    assert by_id[6390]["category"] == "Outfits"
+    assert 61 not in by_id
+    assert 8310 not in by_id
+    assert REPORT.read_text(encoding="utf-8") == render_report(rows)
+
+
 def test_pack_atlas_rejects_gaps_and_placeholders():
     partial = [{"index": i, "width": 8, "height": 8} for i in range(14)]
     assert pack_atlas(partial) is None
@@ -174,5 +195,6 @@ if __name__ == "__main__":
     test_flexible_needs_an_l_sheet()
     test_english_name_preference()
     test_tint_defaults()
+    test_shapeshift_dolls_replace_the_character()
     test_pack_atlas_rejects_gaps_and_placeholders()
     print("ok")

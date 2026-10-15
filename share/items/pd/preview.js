@@ -184,7 +184,31 @@
     slots.forEach(slot => { worn[slot] = { id: id, placementId: place.id }; });
   }
 
+  function shapeshiftWorn() {
+    let found = null;
+    SLOT_ORDER.forEach(slot => {
+      if (found) return;
+      const id = wornId(slot);
+      if (!id) return;
+      const rec = pdFind(id);
+      if (rec && rec.flags && rec.flags.shapeshift) found = { rec: rec, slot: slot };
+    });
+    return found;
+  }
+
   function layers() {
+    const shift = shapeshiftWorn();
+    if (shift) {
+      // The sprite is the whole character. Leave out the dummy, hair, mount, and other gear.
+      const pose = "standing";
+      const place = placementFor(shift.rec, wornPlace(shift.slot));
+      const comps = ((shift.rec.components || {})[snap.sex] || {})[pose] || {};
+      const map = {};
+      (place.layers || []).forEach(layer => {
+        if (comps[layer]) map[layer] = comps[layer];
+      });
+      return { map: map, pose: pose, riderOffsetY: 0, layerMode: "ride" };
+    }
     const rideId = wornId("ride");
     const ride = rideId ? pdFind(rideId) : null;
     const pose = ride ? "mounted" : "standing";
@@ -618,7 +642,17 @@
     }
     await paint();
     const pretty = displayName(rec) || name || id;
-    dollMeta.textContent = (already ? "Removed " : "Wearing ") + pretty + " · /item " + id;
+    const shift = shapeshiftWorn();
+    let note = "";
+    if (shift && rec.flags && rec.flags.shapeshift) {
+      const drawn = Object.keys(layers().map).length;
+      note = drawn
+        ? " · full character, other layers hidden"
+        : " · full character, no sprite for this sex";
+    } else if (shift && !already) {
+      note = " · hidden while a shapeshift is worn";
+    }
+    dollMeta.textContent = (already ? "Removed " : "Wearing ") + pretty + " · /item " + id + note;
     syncLink();
     renderSlots();
   }

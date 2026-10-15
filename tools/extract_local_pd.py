@@ -154,8 +154,14 @@ def load_dolls(db: Path) -> dict[int, dict]:
     fields = [c for c, _ in SLOT_COLS if c in cols]
     extra_names = [c for c in (
         "頭部全罩", "頭部半罩", "身體袍", "背部另一層", "收藏類別", "主手裝備", "副手裝備",
+        "變身換圖",
     ) if c in cols]
-    for col, flag in (("身體袍", "robe"), ("背部另一層", "capeLayer"), ("收藏類別", "collection")):
+    for col, flag in (
+        ("身體袍", "robe"),
+        ("背部另一層", "capeLayer"),
+        ("收藏類別", "collection"),
+        ("變身換圖", "shapeshift"),
+    ):
         if col not in cols:
             print(f"warning: doll.{col} missing; {flag} left default")
     q = "select id," + ",".join(f'"{c}"' for c in fields + extra_names) + " from doll"
@@ -183,6 +189,7 @@ def load_dolls(db: Path) -> dict[int, dict]:
             "capeLayer": _yes(extra_vals.get("背部另一層")) if "背部另一層" in cols else False,
             "mainHand": _yes(extra_vals.get("主手裝備")) if "主手裝備" in cols else False,
             "offHand": _yes(extra_vals.get("副手裝備")) if "副手裝備" in cols else False,
+            "shapeshift": _yes(extra_vals.get("變身換圖")) if "變身換圖" in cols else False,
             "collection": COLLECTION_IDS.get(raw_collection, raw_collection or None),
             "collectionRaw": raw_collection or None,
         }
@@ -1059,6 +1066,7 @@ def empty_flags() -> dict:
         "capeLayer": False,
         "twoHanded": False,
         "flexibleHands": False,
+        "shapeshift": False,
     }
 
 
@@ -1201,6 +1209,8 @@ def extract_wear_group(
         **base_flags,
         "twoHanded": two,
         "flexibleHands": flexible,
+        # 變身換圖 dolls are a whole character sprite, not a clothing layer.
+        "shapeshift": bool(doll and doll.get("shapeshift")),
     }
     comps = {sex: {"standing": {}, "mounted": {}} for sex in ("male", "female")}
     component_ids: dict[str, int] = {}
