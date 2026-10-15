@@ -10,7 +10,7 @@ import json
 import re
 import sqlite3
 import xml.etree.ElementTree as ET
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
 
 from client_paths import configured_extract
@@ -157,6 +157,13 @@ FASHION_MENU_KIND = {
     "acc": "Accessories",
 }
 FASHION_MENU_KINDS = set(FASHION_MENU_KIND.values())
+# Kinds the translated-name pass is allowed to replace. A scroll or a key
+# that NAME_KIND already claimed stays put.
+FASHION_RECLASSIFY = {
+    "Fashion", "Fashion Head", "Fashion Body", "Fashion Feet",
+    "Fashion Hands", "Fashion Wings", "Shapeshift",
+    *FASHION_MENU_KINDS,
+}
 
 # First match wins. Shoes and gloves beat a set-name word (Wing Boots, Dress
 # Gloves). Hats beat wings (Wing Hat). Bags, rifles, guns and surfboards are
@@ -185,7 +192,7 @@ _FASHION_EN = [
         re.I,
     )),
     ("hair", re.compile(
-        r"\bhairs?\b|\bhairstyles?\b|\bponytails?\b|\bwigs?\b|\bbobs?\b|\bbangs?\b|\bbuns?\b",
+        r"\bhairs?\b|\bhairstyles?\b|\bponytails?\b|\bwigs?\b|\bafros?\b|\bbobs?\b|\bbangs?\b|\bbuns?\b",
         re.I,
     )),
     ("outfits", re.compile(
@@ -279,6 +286,116 @@ def load_sprite_layers() -> dict[int, set[str]]:
     return found
 
 
+_SHAPE_IN_NAME = re.compile(r"shapeshift|\btransform", re.I)
+_SHAPE_IN_DESC = re.compile(r"shapeshift|transform into", re.I)
+_EARS_WORD = re.compile(r"\bears\b", re.I)
+_HAT_OTHER = re.compile(
+    r"\bhats?\b|\bhelms?\b|\bhelmets?\b|\bcirclets?\b|\btiaras?\b|\bcrowns?\b|\bhorns?\b"
+    r"|\bcaps?\b|\bberets?\b|\bhoods?\b|\bheadbands?\b|\bheaddress(?:es)?\b|\bbonnets?\b",
+    re.I,
+)
+_MATERIAL_WOOD = re.compile(r"\b(?:wood|logs?|planks?|branches?)\b", re.I)
+
+
+def _ears_only_hat(name: str) -> bool:
+    """True when the only hat keyword is the word ears (cat ears, bunny ears)."""
+    if not _EARS_WORD.search(name or ""):
+        return False
+    if _HAT_OTHER.search(name or ""):
+        return False
+    return _fashion_match(name, _FASHION_EN[:4]) is None
+
+
+def fashion_kind_for_page(name: str, desc: str = "", extra: str = "", layers=None) -> str:
+    """Menu kind for a fashion row after its name has been translated.
+
+    Shapeshift is decided from the item name, plus a description that says
+    the wearer transforms into something. A description that only says
+    "transformation PD" is still a clothing piece. An ears-only translation
+    loses to an earring name in the extra text.
+    """
+    if _SHAPE_IN_NAME.search(name or "") or _SHAPE_IN_DESC.search(desc or ""):
+        return "Shapeshift"
+    cat = fashion_category(name, extra, layers)
+    if cat == "hats" and _ears_only_hat(name):
+        extra_cat = _fashion_match(extra, _FASHION_EN) or _fashion_match(extra, _FASHION_CJK)
+        if extra_cat == "face":
+            cat = "face"
+    if not cat:
+        return "Fashion"
+    return FASHION_MENU_KIND[cat]
+
+
+def catalog_primary_names() -> dict[int, str]:
+    """Paper-doll record name keyed by that record's own item id."""
+    path = ROOT / "docs" / "pd" / "client_pd_preview.json"
+    if not path.is_file():
+        return {}
+    catalog = json.loads(path.read_text(encoding="utf-8"))
+    found: dict[int, str] = {}
+    for item in catalog.get("items") or []:
+        iid = item.get("item_id")
+        name = item.get("name") or ""
+        if iid is None or not name:
+            continue
+        found.setdefault(int(iid), name)
+    return found
+
+
+def apply_menu_kinds(items: list[dict]) -> list[dict]:
+    """Classify fashion from the translated name. Drops the loader's scratch fields.
+
+    Extra names use the translation cache only. A missing cache line stays in
+    the original script so the Chinese and Japanese keywords still match,
+    and this pass does not load the translation model.
+    """
+    cache_path = ROOT / "corpus" / "item_translations_en.json"
+    cache = json.loads(cache_path.read_text(encoding="utf-8")) if cache_path.is_file() else {}
+    layers = load_sprite_layers()
+    catalog = catalog_primary_names()
+
+    def show(text: str) -> str:
+        if not text:
+            return ""
+        key = text.replace("\r", " ").replace("\n", " ")
+        return cache.get(key, text)
+
+    for item in items:
+        base = item.pop("_base_kind", None)
+        raw_names = [n for n in (item.pop("_menu_extra", None) or []) if n]
+        name = item.get("name") or ""
+        cat_name = catalog.get(item["id"], "")
+        parts = []
+        for text in [*raw_names, *map(show, raw_names), cat_name, show(cat_name)]:
+            if text and text not in parts and text != name:
+                parts.append(text)
+        extra = " ".join(parts)
+        if base == "Fashion" or str(base or "").startswith("Fashion"):
+            # NAME_KIND may already have claimed a scroll or a key. Leave that.
+            if item.get("kind") not in FASHION_RECLASSIFY:
+                continue
+            kind = fashion_kind_for_page(name, item.get("desc") or "", extra, layers.get(item["id"]))
+        elif base in ("Headgear", "Body Armor"):
+            # Same override as refine_kind, using the translated name. A bag
+            # or mask filed as headgear is not a helmet. Extra aliases are
+            # not consulted here; a bad translation of another name must not
+            # move a helmet.
+            cat = fashion_category(name, "", layers.get(item["id"]))
+            if cat in {"face", "acc"} or (
+                cat == "back" and (base == "Headgear" or _BACK_GEAR.search(name))
+            ):
+                kind = FASHION_MENU_KIND[cat]
+            else:
+                continue
+        else:
+            continue
+        item["kind"] = kind
+        group = fashion_group(base, kind) or GROUP_OF.get(kind)
+        if group:
+            item["group"] = group
+    return items
+
+
 def fashion_group(base_kind: str, kind: str) -> str | None:
     """Fashion menu kinds stay in Fashion. Armor gloves stay in Armor."""
     if kind not in FASHION_MENU_KINDS:
@@ -362,7 +479,7 @@ def refine_kind(name: str, kind: str, desc: str = "", extra: str = "", layers=No
             return "Cloth"
         if any(w in n for w in ("herb", "flower", "leaf", "petal", "grass")):
             return "Herb"
-        if any(w in n for w in ("wood", "log", "plank", "branch")):
+        if _MATERIAL_WOOD.search(n):
             return "Wood"
         if any(w in n for w in ("fish", "shrimp", "crab")):
             return "Fish"
@@ -528,6 +645,7 @@ def load_items() -> list[dict]:
     magic_ranks, magic_skills = load_magic_index(con)
     layers_by_id = load_sprite_layers()
     merged: dict[int, dict] = {}
+    extra_names: dict[int, set[str]] = defaultdict(set)
     for table in TABLES:
         cols = {c[1] for c in con.execute(f"pragma table_info({table})")}
         want = ["id", "基本名稱", "物品類別", "原型名稱", "原型介面",
@@ -548,6 +666,11 @@ def load_items() -> list[dict]:
             display = f"{prefix} {name}".strip() if prefix and prefix.lower() not in name.lower() else name
             desc = clean(rec.get("說明定義"))[:180]
             base_kind = CAT_EN.get(zh, zh or "Unknown")
+            extra_names[iid].add(name)
+            if prefix:
+                extra_names[iid].add(prefix)
+            # Kind is refined again for fashion after translation. The raw
+            # name has not been translated yet, so English keywords miss it.
             kind = refine_kind(display, base_kind, desc, layers=layers_by_id.get(iid))
             group = fashion_group(base_kind, kind) or GROUP_OF.get(kind, "Other")
             row = {
@@ -601,7 +724,11 @@ def load_items() -> list[dict]:
                 row["desc"] = desc
             if quality:
                 row["quality"] = quality
+            row["_base_kind"] = base_kind
             merged[iid] = row
+    for row in merged.values():
+        bag = extra_names.get(row["id"]) or set()
+        row["_menu_extra"] = sorted(n for n in bag if n and n != row["name"])
     con.close()
     known: list[tuple[tuple, int]] = []
     pending: list[tuple[dict, str]] = []
@@ -1151,6 +1278,7 @@ def main() -> None:
     args = parser.parse_args()
     print("loading items...")
     items = translate_item_fields(load_items())
+    apply_menu_kinds(items)
     print(f"  {len(items)} unique items")
     print("loading icon map...")
     files = load_icon_files()

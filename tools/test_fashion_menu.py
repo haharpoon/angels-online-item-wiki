@@ -13,9 +13,12 @@ from build_item_wiki import (  # noqa: E402
     DB,
     FASHION_MENU_KIND,
     ROOT,
+    apply_menu_kinds,
     fashion_category,
+    load_items,
     load_sprite_layers,
 )
+from translate_text import translate_item_fields
 
 CSV_PATH = Path(__file__).resolve().parent / "fixtures" / "remenu_moves.csv"
 
@@ -85,5 +88,53 @@ def main() -> None:
     print(f"sprite layers for {sum(1 for row in rows if layers.get(int(row['id'])))} remenu items")
 
 
+# The sheet name and the item row disagree, so the page kind follows the row.
+# 54580 is 灼熱の兜. The bare-name cache says "The burning bag."; the published
+# name is "1 Scorching Helmet", which is a hat. 6351 was Floral Bib in the
+# doll catalog; update24 reused the id for a hidden quest flag.
+PAGE_EXCEPTIONS = {
+    54580: ("Hats", "published name is 1 Scorching Helmet; the sheet name is a bad translation of 兜"),
+    6351: ("Hidden", "update24 reused id 6351 for Finish Second Dialogue; the doll catalog still says Floral Bib"),
+}
+
+
+def test_page_build_path() -> None:
+    """The kind written into the item page, not fashion_category() alone."""
+    items = translate_item_fields(load_items())
+    apply_menu_kinds(items)
+    built = {item["id"]: item for item in items}
+    rows = list(csv.DictReader(CSV_PATH.open(encoding="utf-8")))
+    bad = []
+    for row in rows:
+        iid = int(row["id"])
+        item = built.get(iid)
+        got = None if item is None else item["kind"]
+        expect = FASHION_MENU_KIND[row["new_category"]]
+        if iid in PAGE_EXCEPTIONS:
+            pinned, _why = PAGE_EXCEPTIONS[iid]
+            if got != pinned:
+                bad.append((iid, row["original_name"], pinned, got, "exception"))
+            elif got == expect:
+                bad.append((iid, row["original_name"], expect, got, "exception now matches the sheet"))
+            continue
+        if got != expect:
+            bad.append((iid, row["original_name"], expect, got, None if item is None else item["name"]))
+    print(f"page build rows {len(rows)} matched {len(rows) - len(bad)} missed {len(bad)}")
+    for item in bad:
+        print(f"  id {item[0]} {item[1]!r} expected {item[2]} got {item[3]} name={item[4]!r}")
+    if bad:
+        raise SystemExit(f"{len(bad)} page-build rows do not match")
+    bib = built[6351]
+    if bib["name"] != "Finish Second Dialogue":
+        raise SystemExit(f"6351 name is {bib['name']!r}")
+    if "log" in bib["kind"].lower() or bib["kind"] == "Wood":
+        raise SystemExit("6351 was classified as Wood because dialogue contains log")
+    helmet = built[54580]
+    if "Helmet" not in helmet["name"]:
+        raise SystemExit(f"54580 name is {helmet['name']!r}")
+    print("page build path ok")
+
+
 if __name__ == "__main__":
     main()
+    test_page_build_path()
