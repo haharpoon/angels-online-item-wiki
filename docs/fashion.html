@@ -66,6 +66,7 @@
   .mtag{position:absolute;top:22px;left:4px;font-size:9.5px;padding:1px 5px;border-radius:6px;background:#2b4a2a;color:#d6ffd0;border:1px solid #4d7a45}
   .ver{display:inline-block;font-size:9.5px;margin-top:2px;padding:0 5px;border-radius:6px;background:#3d2f12;color:#f0d48a;border:1px solid #6b5527}
   .badge.info{background:#203a52;color:#cfe8ff;border-color:#33618a}
+  .badge.shift{background:#3a2a5a;color:#e8d0ff;border-color:#7a5aaa}
   .sxt{position:absolute;bottom:4px;right:5px;font-size:12px;font-weight:700;line-height:1}
   .sxt.f{color:#ff9ec4}.sxt.m{color:#8fc8ff}
   .hidden{display:none}
@@ -115,12 +116,13 @@
 <script src="pd/tint-masks.js"></script>
 <script src="pd/preview.js"></script>
 <script src="pd/fashion-data.js"></script>
+<script src="pd/shapeshift-ids.js"></script>
 <script>
 (function(){
   const ALL = window.FASHION_DATA || [];
   const LABEL = window.FASHION_LABELS || {};
   const MENU = [
-    ["outfits","Outfits"],["hats","Hats"],["hair","Hair"],["face","Face"],["acc","Accessories"],["gloves","Gloves"],["shoes","Shoes"],["back","Back"],
+    ["outfits","Outfits"],["shapeshift","Shapeshift"],["hats","Hats"],["hair","Hair"],["face","Face"],["acc","Accessories"],["gloves","Gloves"],["shoes","Shoes"],["back","Back"],
     ["weapons","Weapons"],["w1","One-handed",1],["w2","Two-handed",1],["woff","Off-hand",1],
     ["mounts","Mounts"],["mecha","Mecha"]];
   const MLABEL = Object.fromEntries(MENU.map(([id,l]) => [id,l]));
@@ -129,7 +131,9 @@
   const st = { cat:"outfits", prevCat:"outfits", sex:"female", q:"", src:"all", onlyPd:true, grouped:true, page:0, pick:{} };
   const $ = s => document.querySelector(s);
   const esc = t => String(t).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-  const inCat = (o,c) => c === "all" ? true : c === "weapons" ? /^w/.test(o.c) : o.c === c;
+  const SHIFT = window.SHAPESHIFT_IDS || new Set();
+  const isShift = o => o.k === "Shapeshift" || SHIFT.has(o.id) || (o.dup || []).some(d => SHIFT.has(d));
+  const inCat = (o,c) => c === "all" ? true : c === "weapons" ? /^w/.test(o.c) : c === "shapeshift" ? isShift(o) : o.c === c;
   const api = () => window.pdApi || null;
   const title = t => t.replace(/\b[a-z]/g, m => m.toUpperCase());
   // variant label = colour word found in that variant's own display name; nothing else
@@ -154,7 +158,7 @@
 
   function renderMenu(list){
     const counts = {all:list.length};
-    list.forEach(o => { counts[o.c] = (counts[o.c]||0)+1; if (/^w/.test(o.c)) counts.weapons = (counts.weapons||0)+1; });
+    list.forEach(o => { counts[o.c] = (counts[o.c]||0)+1; if (/^w/.test(o.c)) counts.weapons = (counts.weapons||0)+1; if (isShift(o)) counts.shapeshift = (counts.shapeshift||0)+1; });
     const items = (st.q ? [["all","All results"]] : []).concat(MENU).filter(([id]) => id === "all" || counts[id]);
     if (!counts[st.cat] && st.cat !== "all") { const first = items.find(([id]) => id !== "all"); if (first) { st.cat = first[0]; } }
     $("#menu").innerHTML = `<div class="h">${st.q ? "Search · all menus" : "Wardrobe"}</div>` + items.map(([id,label,sub]) =>
@@ -201,6 +205,7 @@
       return `<div class="card${isWorn(o,w)?" on":""}" data-gi="${gi}" title="${esc(o.o || o.n)} · ${esc(LABEL[o.c] || o.c)} · #${esc(o.id)}${o.dup ? " (also #" + o.dup.join(", #") + ")" : ""}">
         ${o.p || o.c === "acc" ? "" : '<span class="badge">No preview yet</span>'}
         ${o.c === "acc" ? '<span class="badge info">Browse only</span>' : ""}
+        ${isShift(o) && o.c !== "acc" ? '<span class="badge shift">Shapeshift</span>' : ""}
         ${sexTag(o)}
         ${multi ? `<span class="vars">×${g.length}</span>` : ""}
         ${st.q ? `<span class="mtag">${esc(MLABEL[o.c] || o.c)}</span>` : ""}
