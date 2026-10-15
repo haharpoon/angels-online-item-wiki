@@ -1,0 +1,42 @@
+filename,source_pak,item_ids,item_names,category,status,why_selected,bit_depth_guess,file_size,frames,pal_size_field,flag_field,width,height,px_off,pal_off,noise_score
+i0343.SHP,data1,164;343;1430;1601;2797;3317,Bloody Butcher Boots;Fury Axe;Fury Axe (P);Fury Boots;Iron Axe;Snow Unicorn;Snow Unicorn(Defense);Snow Unicorn(MATK);Vei,weapon,control,requested,8,2044,2,768,10466,35,35,1476,964,108
+i0070.SHP,data1,2739;3535;3539;3572;3576;16703,Blue Devil Wings(F);Blue Killer Wings (F);Blue Killer Wings(F);Cat Turbo Robot;Green Devil Wings(M);Green Killer Wings (,other,control,requested:Blue Killer,8,2210,2,768,10466,36,35,1428,916,96
+i0050.SHP,data1,1187;1866;3508;3525;3545;3562,Killer Freddy Mask (F);Killer Freddy Mask (M);Killer Mask(F);Killer Mask(M);Turtle Shell Bag,hat,control,requested:Killer Mask,8,1623,2,768,10466,26,28,1152,640,148
+i0341.SHP,data1,1196;7408;7411;11965;13881;30632,Bloody Butcher Mask;Fury Mask;Hero;Hero (P);Ursus;帰還-英雄;晨光棕熊;英雄,weapon,control,requested:Fury Mask,8,2262,2,768,10466,36,36,1592,1080,133
+I1547.SHP,data1,4038;8698;9002;9272;16253;16880,Blue BBQ Cuttlefish;Crystal Green Duck Robot;Elar's Leaf;Elar's Leaf (Trial Version);Grilled Ink Squid;Grilled Ink Squid,weapon,control,requested:Elar's Leaf,8,2244,2,768,10466,36,36,1640,1128,119
+I2378.SHP,update3,9757;14926;15375;16173;16584;18409,Rage Helmet;クラッシュヘルム,hat,control,requested:Rage Helmet,8,2453,2,768,10466,36,36,1424,912,86
+i0160.SHP,data1,3731;4993;4996;6251;6254;7345,Koala Robot 2;R-エージェントグラス;Spy Glasses(F);Spy Glasses(M);climbing Koala Robot;グラス;無尾熊機甲,hat,control,requested:Spy Glasses,8,1813,2,768,2016,25,35,1340,828,115
+i0199.SHP,data1,4162;5653,Spy Glasses (M);Stiff Beetle,hat,control,requested:Spy Glasses,8,1685,2,768,2016,31,26,1112,600,37
+i0202.SHP,data1,4170;4184;5656,Number;Scarab;Spy Glasses (F),hat,control,requested:Spy Glasses,8,1835,2,768,2016,33,29,1172,660,59
+i0205.SHP,data1,4910;5659;7752;82238,Beast King;Spy Glasses (M);キングレオン;キングレオン改(30日),hat,control,requested:Spy Glasses,8,1735,2,768,2016,32,26,1128,616,55
+i0144.SHP,data1,507;4954;4958;6710,Hairstyle(M);Hell Wolf;Roll Hairstyle(F);ロックヘア,hat,control,requested:Roll Hairstyle,8,1694,2,768,2016,15,34,1272,760,97
+i0148.SHP,data1,3008;4752;4961;4965;6706;7347,Graveyard Lemmus Ride;Mediterranean Mouse Ride;Ride;Roll Hairstyle(F);Roll Hairstyle(M);ロックヘア;小白茸鼠,hat,control,requested:Roll Hairstyle,8,1818,2,768,2016,36,27,1156,644,71
+i0152.SHP,data1,3719;4968;4972,Ocean Color;Roll Hairstyle(F);Roll Hairstyle(M),hat,control,requested:Roll Hairstyle,8,1851,2,768,2016,33,35,1364,852,83
+I4967.SHP,update3,30038;47817;48657;48695;50066;50084,Emerald Blade;ハードックソード;哈特克青光刃;夏祭り-祭団扇(黄);聖殿の刃,weapon,broken,broken-sample,16,1912,2,512,2016,32,32,952,0,156
+I1545.SHP,data1,4058;8708;9005;9275;16256;16883,Builder's Grilled Squid;Grill Cuttlefish;Libelice's Torture;Libelice's Torture  (Trial Version);Red BBQ Cuttlefish;暴食の杖,weapon,control,control,8,1831,2,768,10466,35,36,1384,872,56
+I3873.SHP,data1,21516;21517;36498;36503;40954;53375,Angelic Begonia Bouquet;Siren Blade;Temptation Blade;三日月刀;匠-三日月刀;帰還-妖惑の刃,weapon,control,control,8,2316,2,768,2016,28,36,1312,800,0
+i0021.SHP,data1,234;263;357;1777;2735;3315,Arm Robot;Black Shoes(M);Chat Bubble;Crystal Staff;Crystal Staff (P);Token;怪手機甲;權杖;漆黒下駄;黒下駄;黒色下駄,weapon,control,control,8,1620,2,768,10466,35,35,1292,780,55
+I1457.SHP,data1,24187;24320,Elegant China Rose;Elegant China Rose (3 days),hat,broken,broken-sample,16,2000,2,512,2016,33,34,824,0,233
+I1453.SHP,data1,24183,Hot China Rose,hat,broken,broken-sample,16,1812,2,512,2016,34,32,768,0,208
+I1496.SHP,data1,24888;24926;26779,Vatican Cassock;神父の帽子,hat,broken,broken-sample,16,2054,2,512,2016,36,36,848,0,207
+I3726.SHP,data1,61659,Fern Reindeer Antlers (M),hat,broken,broken-sample,16,2590,2,512,2016,32,32,784,0,189
+I1232.SHP,data1,22518;22539;61951;68270,Dark Knight Hairstyle;Sleek Blonde Hair (M);冰海守衛鯊,hat,broken,broken-sample,16,3254,2,512,2016,40,40,1008,0,188
+I1734.SHP,data1,5239;7007;8362;8729;12011;16621,Fane Armor;トナカイアルターⅡ;神殿騎士の鎧;鉄巨人の重鎧,hat,broken,broken-sample,16,2416,2,512,10466,35,36,952,0,187
+I0478.SHP,data1,8804;14223;26086;35183,Cute Red cat Hat;Golden Brow Gnome;Miu Miu Cap;OWL-Craft,hat,control,control,8,2087,2,768,2016,25,34,1272,760,0
+I1756.SHP,data1,5269;7012;8368;8739;12033;16626,Lucky Jack Boots;Woodland Snow Wolf Hat;Woodland Snow Wolf Hat (3 days);テュポンの靴,hat,control,control,8,1877,2,768,10466,33,29,1188,676,55
+i4901.SHP,update2,30109;50343;50418;50506;50737;56042,Octogram Robe;Orange Jellyfish Hat;天玄太極法袍,hat,control,control,8,2316,2,768,2016,28,36,1312,800,0
+I1222.SHP,data1,20851;67219,Blue Watermelon Pestle;オシャレ鼠(桃),mount,broken,broken-sample,16,2732,2,512,2016,38,39,900,0,477
+I1248.SHP,data1,22534;22555;72202,Howling Lupus;Shockwoman shoes,mount,broken,broken-sample,16,2330,2,512,2016,29,40,880,0,276
+I1246.SHP,data1,22532;22553;68878,Shockwoman tights;朱雀(黒),mount,broken,broken-sample,16,2340,2,512,2016,40,40,880,0,261
+I1467.SHP,data1,24197;24324;78284,Cutie Surfboard;Cutie Surfboard (3 Days);粉彩棉花雲,mount,broken,broken-sample,16,2584,2,512,2016,32,31,724,0,258
+I1239.SHP,data1,22525;22546;68866;68986,Green Knight Leather Boots;侍者羊駝;旅人ラマ(茶),mount,broken,broken-sample,16,2330,2,512,2016,40,40,880,0,251
+I1241.SHP,data1,22527;22548;68868,Superwoman Gloves;旅人ラマ(桃),mount,broken,broken-sample,16,2328,2,512,2016,40,40,880,0,240
+I1214.SHP,data1,20843;21081;68275;68276;71267,Abyss Dragon;Blue Watermelon Bracelet (Male);黃金舞孃蛇頸龍(攻擊型);黃金舞孃蛇頸龍(魔攻型),mount,control,control,8,1880,2,768,10466,25,36,1336,824,47
+I1425.SHP,data1,24080;76572,Elephant Vacuum;Stalker Wings,mount,control,control,8,2608,2,768,0,36,36,1312,800,0
+I0996.SHP,data1,13910;15674;57341;57342;58483,Deity Goddess Armlet;ママ・コケコ(藍);天界の腕輪;鄉村奔跑咕咕(防禦型);鄉村奔跑咕咕(魔攻型),mount,control,control,8,2044,2,768,2016,36,26,1112,600,0
+I1735.SHP,data1,5233;7006;8361;8728;12010;16620,Fane Cuffs;Fane cuffs;トナカイウェア;神殿騎士の籠手,other,broken,broken-sample,16,2058,2,512,10466,34,34,768,0,302
+I1235.SHP,data1,22521;22542,Dark Knight Leather Boots,other,broken,broken-sample,16,3022,2,512,2016,40,40,896,0,275
+I1234.SHP,data1,22520;22541,Dark Knight Gloves,other,broken,broken-sample,16,3204,2,512,2016,40,40,992,0,264
+I4800.SHP,update3,27706;27707;71382,Clown Clothes (M);Peregrine Boots,other,control,control,8,2012,2,768,2016,35,32,1232,720,34
+I2393.SHP,update3,9865;14930;16181;16588;18421;42965,Maya Swordfish Spear;Seraph's Staring,other,control,control,8,2019,2,768,10466,34,35,1300,788,48
+i2523.SHP,update2,45706;45717;45757;45787;46132,Xmasうさぎグローブ(C);Yellow Bunny Mittens;Yellow Bunny Mittens ;Yellow Bunny Mittens (3 days),other,control,control,8,1937,2,768,10466,36,35,1524,1012,40

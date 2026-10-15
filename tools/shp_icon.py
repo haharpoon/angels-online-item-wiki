@@ -4,10 +4,13 @@ Last-pak-wins, same order as extract_content.py. Multi-direction sheets
 keep the cell with the most pixels in the upper half (facing the camera);
 the in-game default is often the back view.
 
-Pixel format comes from the header. A colour depth of 16, or a colour count
-of 0 with no palette bytes before the pixels, is direct RGB565 (2 bytes per
-pixel, and a zero word is transparent). Anything else with a depth other than
-0 or 8 is refused.
+A palette size of 512 and a palette offset of 0 means there is no palette:
+each pixel is a little-endian RGB565 word, and nothing inside a span is
+keyed out. Every other TLHS icon is 8-bit, with index 0 transparent.
+The flag at offset 16 is not a bit depth.
+
+Each row record is int16 pixel count, then int16 x, then uint32 source
+offset. A record of (0, -1) ends the row.
 """
 from __future__ import annotations
 
@@ -34,16 +37,20 @@ def rgb565(c: int) -> tuple[int, int, int]:
 
 
 def _row_spans(data: bytes, start: int, end: int) -> list[tuple[int, int, int]]:
-    """Read runs as (x, pixel count, src). The pixel count is this run's width field."""
+    """Read runs as (x, pixel count, src).
+
+    On disk the first int16 is the pixel count and the second is x.
+    (0, -1, cumulative byte count) ends the row.
+    """
     spans = []
     p = start
     while p + 8 <= end and p + 8 <= len(data):
-        x, width = struct.unpack_from("<hh", data, p)
+        count, x = struct.unpack_from("<hh", data, p)
         src = struct.unpack_from("<I", data, p + 4)[0]
         p += 8
-        if width == -1:
+        if count == 0 and x == -1:
             break
-        spans.append((x, width, src))
+        spans.append((x, count, src))
     return spans
 
 
@@ -85,12 +92,12 @@ def header_fields(data: bytes) -> dict | None:
     """The TLHS fields that choose the pixel format. None when it is not TLHS."""
     if len(data) < 80 or data[:4] != b"TLHS":
         return None
-    frames, pal_size, depth, width, height = struct.unpack_from("<IIIII", data, 8)
+    frames, pal_size, flag, width, height = struct.unpack_from("<IIIII", data, 8)
     return {
         "version": struct.unpack_from("<I", data, 4)[0],
         "frames": frames,
         "pal_size": pal_size,
-        "depth": depth,
+        "flag": flag,
         "width": width,
         "height": height,
         "px_off": struct.unpack_from("<I", data, 44)[0],
@@ -98,25 +105,14 @@ def header_fields(data: bytes) -> dict | None:
     }
 
 
-def icon_format(fields: dict) -> str | None:
-    """index8, rgb565, or None when the depth is not one this decoder knows.
+def icon_format(fields: dict) -> str:
+    """index8 or rgb565. The flag field does not select the format.
 
-    Depth 16 is direct RGB565. Depth 0 or 8 indexes the RGB565 palette, except
-    when the header declares no colours and there are no palette bytes before
-    the pixels: that sheet is direct RGB565 as well. A zero word is transparent
-    in both formats (palette index 0, or RGB565 0x0000). RGB565 has no spare
-    alpha bit, so a visible black is a non-zero near-black.
+    Palette size 512 and palette offset 0 means the pixel block is
+    little-endian RGB565 and there is no colour key. Anything else is an
+    8-bit index into the RGB565 palette, where index 0 is transparent.
     """
-    depth = int(fields["depth"])
-    pal_size = int(fields["pal_size"])
-    if depth == 16:
-        return RGB565
-    if depth not in (0, 8):
-        return None
-    gap = 0
-    if fields["px_off"] > fields["pal_off"]:
-        gap = int(fields["px_off"]) - int(fields["pal_off"])
-    if pal_size == 0 and gap == 0:
+    if int(fields["pal_size"]) == 512 and int(fields["pal_off"]) == 0:
         return RGB565
     return INDEX8
 
@@ -143,7 +139,7 @@ def decode_shp_bytes(
         where = source or "icon"
         print(
             f"warning: {where}: unknown icon pixel format "
-            f"depth={fields['depth']} pal_size={pal_size}",
+            f"pal_size={pal_size} pal_off={pal_off}",
             file=sys.stderr,
         )
         return None
@@ -203,9 +199,8 @@ def decode_shp_bytes(
                 count = (len(data) - src_i) // stride
             for k in range(count):
                 if fmt == RGB565:
+                    # No colour key. 0x0000 is black, and 0xFFFE/0xFFFF are white.
                     word = struct.unpack_from("<H", data, src_i + k * 2)[0]
-                    if word == 0:
-                        continue
                     r, g, b = rgb565(word)
                 else:
                     idx = data[src_i + k]
@@ -314,19 +309,16 @@ def debug_shp(path: Path, out: Path | None = None) -> None:
     print(f"{path}")
     print(
         f"  version={fields['version']} frames={fields['frames']} "
-        f"pal_size={fields['pal_size']} depth={fields['depth']} "
+        f"pal_size={fields['pal_size']} flag={fields['flag']} "
         f"size={fields['width']}x{fields['height']}"
     )
     print(f"  pixel offset={fields['px_off']} palette offset={fields['pal_off']}")
     if kind == RGB565:
-        print("  format: rgb565, 2 bytes per pixel, 0x0000 is transparent")
+        print("  format: rgb565, 2 bytes per pixel, no colour key")
     elif kind == INDEX8:
         print("  format: 8-bit palette index, index 0 is transparent")
     else:
-        print(
-            f"  format: unknown (depth {fields['depth']}). "
-            "Not written by convert_all. Both previews are still saved here."
-        )
+        print("  format: unknown. Not written by convert_all. Both previews are still saved here.")
     folder = out.parent if out else path.parent
     folder.mkdir(parents=True, exist_ok=True)
     stem = path.stem
