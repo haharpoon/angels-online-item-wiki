@@ -268,15 +268,15 @@
       text-transform: none;
       cursor: default;
     }
-    .item { display: grid; grid-template-columns: 48px 1fr; gap: 10px; align-items: center; }
+    .item { display: grid; grid-template-columns: 72px 1fr; gap: 10px; align-items: center; }
     .portrait {
-      width: 48px; height: 48px; border-radius: 12px;
+      width: 72px; height: 72px; border-radius: 12px;
       border: 1px solid var(--line);
       display: grid; place-items: center;
       font-weight: 800; font-size: 0.8rem;
       overflow: hidden; background: var(--bg-deep); color: var(--gold-strong);
     }
-    .portrait img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
+    .portrait img { width: auto; height: auto; max-width: none; object-fit: none; image-rendering: pixelated; } /* integer size set by pxIcon() */
     .name { color: var(--gold-strong); font-weight: 700; }
     .muted { color: var(--muted); font-size: 0.88rem; }
     .badge {
@@ -345,7 +345,7 @@
       border: 1px solid var(--line);
       border-radius: 8px;
       background: #161022;
-      object-fit: contain;
+      object-fit: none; /* native 1x, centred: no 32->36 stretch */
       image-rendering: pixelated;
     }
     .slotName { display: block; color: var(--muted); font-size: 0.68rem; font-weight: 700; text-transform: uppercase; }
@@ -582,7 +582,7 @@
               <option value="harbor">Night harbor</option>
             </select>
           </label>
-          <label class="pd-check"><input id="dollCrisp" type="checkbox"> Crisp (integer scale)</label>
+          <label class="pd-check"><input id="dollCrisp" type="checkbox" checked> Crisp (integer scale)</label>
           <label class="field">Local background
             <input id="dollBgFile" type="file" accept="image/png,image/jpeg,image/webp">
           </label>
@@ -719,7 +719,7 @@
       if (i.icon) urls.push(`icons/${i.icon}.png`);
       if (file) urls.push(`icons/${file}.png`);
       if (!urls.length) return initials;
-      return `<img src="${urls[0]}" alt="" data-fb="${initials}" data-next="${urls.slice(1).join("|")}" onerror="iconFail(this)">`;
+      return `<img src="${urls[0]}" alt="" data-fb="${initials}" data-next="${urls.slice(1).join("|")}" onload="pxIcon(this)" onerror="iconFail(this)">`;
     }
     function iconFail(img) {
       const next = (img.dataset.next || "").split("|").filter(Boolean);
@@ -731,6 +731,14 @@
       img.replaceWith(Object.assign(document.createElement("span"), {textContent: img.dataset.fb || "?"}));
     }
     window.iconFail = iconFail;
+    // Integer-only icon scale inside the fixed 72px slot (36px -> 2x, 24px -> 3x, >72 -> 1x).
+    function pxIcon(img) {
+      const n = Math.max(img.naturalWidth, img.naturalHeight) || 72;
+      const k = Math.max(1, Math.floor(72 / n));
+      img.style.width = img.naturalWidth * k + "px";
+      img.style.height = img.naturalHeight * k + "px";
+    }
+    window.pxIcon = pxIcon;
     function copyId(id) {
       const text = "item " + id;
       navigator.clipboard.writeText(text).catch(() => {});

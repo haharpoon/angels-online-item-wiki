@@ -27,7 +27,7 @@
   const tinted = {};
   const snap = {
     sex: "female", hair: 0, hairColor: 2, skinTone: 0,
-    height: "average", direction: 4, phase: 0, background: "studio", crisp: false
+    height: "average", direction: 4, phase: 0, background: "studio", crisp: true
   };
   let renderToken = 0;
   let lastTick = 0;
@@ -243,13 +243,13 @@
     const scale = Math.max(size.width / iw, size.height / ih);
     const w = iw * scale;
     const h = ih * scale;
-    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingEnabled = false;
     ctx.drawImage(img, (size.width - w) / 2, (size.height - h) / 2, w, h);
   }
 
   function paintBackground(size) {
     ctx.setTransform(size.ratio, 0, 0, size.ratio, 0, 0);
-    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingEnabled = false;
     if (customImg) {
       ctx.fillStyle = themeColor("--bg", "#100c1c");
       ctx.fillRect(0, 0, size.width, size.height);
@@ -560,10 +560,18 @@
       const bh = Math.max(1, bounds.maxY - bounds.minY);
       scale = Math.min(scale, (size.width - pad * 2) / bw, (size.height - pad * 2) / bh);
     }
-    if (snap.crisp) scale = Math.max(1, Math.floor(scale));
+    // Integer scaling only. Crisp (default) snaps to whole *device* pixels so a
+    // 1.5x/2.5x DPR screen still maps each sprite pixel to an exact pixel block;
+    // otherwise snap to whole CSS pixels.
+    if (snap.crisp) scale = Math.max(1, Math.floor(scale * size.ratio)) / size.ratio;
+    else scale = Math.max(1, Math.floor(scale));
+    originX = Math.round(originX * size.ratio) / size.ratio;
+    originY = Math.round(originY * size.ratio) / size.ratio;
     if (bounds) {
       originX = size.width / 2 - ((bounds.minX + bounds.maxX) / 2) * scale;
       originY = size.height - pad - bounds.maxY * scale;
+      originX = Math.round(originX * size.ratio) / size.ratio;
+      originY = Math.round(originY * size.ratio) / size.ratio;
     }
     const frameIndex = snap.phase * 5 + dir.source;
     visible.forEach((layer, i) => {
