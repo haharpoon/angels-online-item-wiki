@@ -896,6 +896,130 @@
     requestAnimationFrame(tick);
   }
 
+  function cloneWorn() {
+    const copy = {};
+    Object.keys(worn).forEach(slot => {
+      const entry = worn[slot];
+      copy[slot] = entry && typeof entry === "object"
+        ? { id: entry.id, placementId: entry.placementId }
+        : entry;
+    });
+    return copy;
+  }
+
+  function snapshot() {
+    return {
+      sex: snap.sex,
+      hair: snap.hair,
+      hairColor: snap.hairColor,
+      skinTone: snap.skinTone,
+      height: snap.height,
+      direction: snap.direction,
+      phase: snap.phase,
+      background: snap.background,
+      crisp: snap.crisp,
+      worn: cloneWorn(),
+    };
+  }
+
+  function wornIdMap() {
+    const ids = {};
+    Object.keys(worn).forEach(slot => {
+      const id = wornId(slot);
+      if (id != null) ids[id] = true;
+    });
+    return ids;
+  }
+
+  function sexName(sex) {
+    if (sex === "m" || sex === "male") return "male";
+    if (sex === "f" || sex === "female") return "female";
+    return "";
+  }
+
+  // The wardrobe page hovers a look, then puts the previous doll back.
+  function wear(id) {
+    if (!PD) return;
+    const rec = pdFind(id);
+    if (!rec) return;
+    const numeric = Number(id);
+    const already = Object.keys(worn).some(slot => wornId(slot) === numeric || wornId(slot) === rec.item_id);
+    if (already) return;
+    const place = (rec.placements && rec.placements[0]) || { id: "default", occupies: ["head"], layers: ["head"] };
+    equipPlace(numeric, rec, place);
+    paint();
+    renderSlots();
+  }
+
+  function setHair(index, sex) {
+    if (!PD) return;
+    const next = sexName(sex);
+    if (next) applySex(next);
+    const styles = (PD.customization.sexes[snap.sex] || {}).hairstyles || [];
+    const n = Number(index);
+    snap.hair = Number.isInteger(n) && n >= 0 ? Math.min(n, Math.max(0, styles.length - 1)) : 0;
+    fillHair();
+    paint();
+    syncLink();
+  }
+
+  function dropIncompatible(sex) {
+    if (!PD) return [];
+    const next = sexName(sex);
+    if (!next) return [];
+    const removed = [];
+    const seen = new Set();
+    Object.keys(worn).forEach(slot => {
+      const id = wornId(slot);
+      if (id == null || seen.has(id)) return;
+      seen.add(id);
+      const rec = pdFind(id);
+      const sexes = (rec && rec.sexes) || [];
+      if (sexes.length && sexes.indexOf(next) < 0) {
+        removed.push(displayName(rec) || String(id));
+        clearItem(id);
+      }
+    });
+    applySex(next);
+    paint();
+    syncLink();
+    renderSlots();
+    return removed;
+  }
+
+  function restoreState(state) {
+    if (!state || !PD) return;
+    const next = sexName(state.sex);
+    if (next) snap.sex = next;
+    ["hair", "hairColor", "skinTone", "direction", "phase"].forEach(key => {
+      if (Number.isInteger(state[key])) snap[key] = state[key];
+    });
+    if (typeof state.height === "string") snap.height = state.height;
+    if (typeof state.background === "string") snap.background = state.background;
+    if (typeof state.crisp === "boolean") snap.crisp = state.crisp;
+    Object.keys(worn).forEach(slot => { delete worn[slot]; });
+    Object.keys(state.worn || {}).forEach(slot => {
+      const entry = state.worn[slot];
+      worn[slot] = entry && typeof entry === "object"
+        ? { id: entry.id, placementId: entry.placementId }
+        : entry;
+    });
+    Object.keys(tinted).forEach(k => delete tinted[k]);
+    fillControls();
+    paint();
+    syncLink();
+  }
+
+  window.pdApi = {
+    ready: function () { return !!PD; },
+    state: snapshot,
+    wornIds: wornIdMap,
+    setHair: setHair,
+    dropIncompatible: dropIncompatible,
+    wear: wear,
+    restore: restoreState,
+  };
+
   function boot(data) {
     PD = data;
     dollMeta.textContent = "Click a row to dress the dummy.";

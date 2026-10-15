@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fashion Wardrobe · Angels Online wiki (prototype)</title>
+<style>
+  :root{--bg:#100c1c;--bg-deep:#0b0814;--panel:#1b1530;--panel2:#231b3d;--line:#3a2f5c;--gold:#d7b15a;--gold-strong:#f0d48a;--ink-on-gold:#1a1208;--muted:#a49cc0;--text:#ece6ff;--accent:#8fd0ff}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.4 system-ui,Segoe UI,Roboto,sans-serif;color:var(--text);
+    background:radial-gradient(1100px 480px at 8% -10%,rgba(92,58,150,.45),transparent 55%),var(--bg);min-height:100vh}
+  button,input,select{font:inherit;color:inherit}
+  button{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:6px 12px;cursor:pointer}
+  button:hover{border-color:var(--gold)}
+  button[aria-pressed="true"]{background:linear-gradient(180deg,#f0d48a,#d7b15a);color:var(--ink-on-gold);border-color:#f0d48a;font-weight:700}
+  header{position:sticky;top:0;z-index:5;display:flex;gap:14px;align-items:center;padding:10px 18px;background:rgba(16,12,28,.92);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+  header h1{font-size:18px;margin:0;color:var(--gold-strong);letter-spacing:.04em}
+  header h1 small{color:var(--muted);font-weight:400;font-size:12px;margin-left:6px}
+  header a{color:var(--gold-strong);text-decoration:none;border:1px solid var(--line);border-radius:10px;padding:6px 12px}
+  header a:hover{border-color:var(--gold)}
+  .seg{display:flex;gap:4px}
+  #q{flex:1;max-width:360px;background:var(--bg-deep);border:1px solid var(--line);border-radius:10px;padding:7px 12px}
+  header select{background:var(--bg-deep);border:1px solid var(--line);border-radius:10px;padding:6px}
+  .chk{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:13px}
+  main{display:grid;grid-template-columns:200px 1fr 360px;gap:16px;padding:16px 18px;align-items:start}
+  nav{position:sticky;top:70px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px}
+  nav .h{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.1em;padding:8px 8px 4px}
+  nav button{display:flex;justify-content:space-between;width:100%;text-align:left;margin:2px 0;border-color:transparent;background:none}
+  nav button.sub{padding-left:24px;font-size:13px}
+  nav button .n{color:var(--muted);font-size:12px}
+  nav button[aria-pressed="true"] .n{color:var(--ink-on-gold)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px}
+  .card{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 6px 6px;cursor:pointer;text-align:center;transition:transform .08s}
+  .card:hover{transform:translateY(-2px);border-color:var(--gold)}
+  .card.on{border-color:var(--gold-strong);box-shadow:0 0 0 2px rgba(240,212,138,.45)}
+  /* game-style frame: fixed 72px slot, icon at exact integer scale */
+  .frame{width:80px;height:80px;margin:0 auto;display:grid;place-items:center;border-radius:6px;
+    background:radial-gradient(circle at 50% 40%,#2e2550,#120d22 70%);
+    border:2px solid #6b5527;box-shadow:inset 0 0 0 2px #1a1308,inset 0 0 0 3px #a8843d,0 2px 0 #000}
+  .frame img{image-rendering:pixelated;display:block}
+  .frame .ph{color:var(--muted);font-size:22px}
+  .nm{font-size:11.5px;margin-top:6px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;min-height:30px}
+  .badge{position:absolute;top:4px;left:4px;font-size:9.5px;padding:1px 5px;border-radius:6px;background:#5a2a3a;color:#ffd0dc;border:1px solid #8a3a52}
+  .vars{position:absolute;top:4px;right:4px;font-size:10px;padding:1px 5px;border-radius:6px;background:#203a52;color:#cfe8ff;border:1px solid #33618a}
+  .sw{display:flex;gap:3px;justify-content:center;flex-wrap:wrap;margin-top:4px}
+  .sw i{width:9px;height:9px;border-radius:50%;border:1px solid #000;background:#888;cursor:pointer}
+  .sw i.cur{outline:2px solid var(--gold-strong)}
+  .bar{display:flex;justify-content:space-between;align-items:center;margin:0 0 10px;color:var(--muted)}
+  .pager{display:flex;gap:6px;align-items:center;justify-content:center;margin:14px 0}
+  aside{position:sticky;top:70px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px}
+  #doll{width:100%;height:440px;display:block;border-radius:10px;image-rendering:pixelated;touch-action:none;background:#120e22}
+  .rot{display:grid;grid-template-columns:40px 1fr 40px;gap:6px;align-items:center;margin-top:8px;text-align:center;color:var(--gold-strong);font-weight:700}
+  #dollMeta{color:var(--muted);font-size:12.5px;margin:8px 0;min-height:34px}
+  #hoverTag{color:var(--accent);font-size:12px;min-height:16px}
+  .pd-slots{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .slotBtn{width:100%;min-height:46px;display:grid;grid-template-columns:36px 1fr;gap:6px;align-items:center;padding:4px;text-align:left;background:var(--bg-deep)}
+  .slotBtn:disabled{opacity:.6;cursor:default}
+  .slotBtn img,.slotPh{width:36px;height:36px;display:grid;place-items:center;border:1px solid var(--line);border-radius:6px;background:#161022;object-fit:none;image-rendering:pixelated}
+  .slotName{display:block;color:var(--muted);font-size:10px;text-transform:uppercase}
+  .slotItem{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px;font-weight:700}
+  .slotCell{display:flex;flex-direction:column;gap:3px;min-width:0}
+  .handToggle{display:flex;gap:3px}.handToggle button{flex:1;padding:2px;font-size:11px}
+  .row{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+  .cn{font-size:10.5px;color:var(--accent);min-height:13px;margin-top:2px}
+  .sw i.base{background:none!important;border:1px dashed var(--muted);border-radius:3px;width:auto;height:auto;font-style:normal;font-size:8.5px;line-height:9px;padding:0 3px;color:var(--muted)}
+  .mtag{position:absolute;top:22px;left:4px;font-size:9.5px;padding:1px 5px;border-radius:6px;background:#2b4a2a;color:#d6ffd0;border:1px solid #4d7a45}
+  .ver{display:inline-block;font-size:9.5px;margin-top:2px;padding:0 5px;border-radius:6px;background:#3d2f12;color:#f0d48a;border:1px solid #6b5527}
+  .badge.info{background:#203a52;color:#cfe8ff;border-color:#33618a}
+  .sxt{position:absolute;bottom:4px;right:5px;font-size:12px;font-weight:700;line-height:1}
+  .sxt.f{color:#ff9ec4}.sxt.m{color:#8fc8ff}
+  .hidden{display:none}
+  .empty{padding:40px;text-align:center;color:var(--muted)}
+  @media (max-width:1100px){main{grid-template-columns:170px 1fr}aside{grid-column:1/-1;position:static}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Wardrobe <small>Angels Online · prototype</small></h1>
+  <a href="items.html">Item wiki</a>
+  <div class="seg" id="dollSex">
+    <button type="button" data-sex="male">♂ Male</button>
+    <button type="button" data-sex="female">♀ Female</button>
+  </div>
+  <input id="q" type="search" placeholder="Search all menus: name or item id…" autocomplete="off">
+  <select id="src" title="Source">
+    <option value="all">All gear</option>
+    <option value="fashion">Paper-doll fashion</option>
+    <option value="gear">Normal gear (armour/weapons)</option>
+  </select>
+  <label class="chk"><input type="checkbox" id="onlyPd" checked> Preview only</label>
+  <label class="chk"><input type="checkbox" id="grouped" checked> Group colours</label>
+</header>
+<main>
+  <nav id="menu"></nav>
+  <section>
+    <div class="bar"><span id="count"></span><span id="pageInfo"></span></div>
+    <div class="grid" id="grid"></div>
+    <div class="pager"><button id="prev">◀ Prev</button><span id="pg"></span><button id="next">Next ▶</button></div>
+  </section>
+  <aside>
+    <canvas id="doll" width="340" height="440" tabindex="0"></canvas>
+    <div class="rot"><button id="dollLeft" aria-label="Rotate left">◀</button><span id="dollDir">Front</span><button id="dollRight" aria-label="Rotate right">▶</button></div>
+    <div id="hoverTag"></div>
+    <div id="dollMeta">Loading paper-doll sprites…</div>
+    <div class="pd-slots" id="dollSlots"></div>
+    <div class="row">
+      <select id="dollHair" class="hidden"></select>
+      <button id="dollClear">Clear all</button>
+      <button id="dollSave">Save PNG</button>
+      <label class="chk"><input id="dollCrisp" type="checkbox" checked> Crisp</label>
+    </div>
+  </aside>
+</main>
+<script src="pd/catalog.js"></script>
+<script src="pd/tint-masks.js"></script>
+<script src="pd/preview.js"></script>
+<script src="pd/fashion-data.js"></script>
+<script>
+(function(){
+  const ALL = window.FASHION_DATA || [];
+  const LABEL = window.FASHION_LABELS || {};
+  const MENU = [
+    ["outfits","Outfits"],["hats","Hats"],["hair","Hair"],["face","Face"],["acc","Accessories"],["gloves","Gloves"],["shoes","Shoes"],["back","Back"],
+    ["weapons","Weapons"],["w1","One-handed",1],["w2","Two-handed",1],["woff","Off-hand",1],
+    ["mounts","Mounts"],["mecha","Mecha"]];
+  const MLABEL = Object.fromEntries(MENU.map(([id,l]) => [id,l]));
+  const PER = 60;
+  const COLORS = {red:"#d44",blue:"#47d",green:"#4a5",yellow:"#ec4",pink:"#f8b",purple:"#a5d",violet:"#a5d",black:"#222",white:"#eee",gold:"#e4c36a",golden:"#e4c36a",silver:"#ccd",orange:"#e83",brown:"#863",grey:"#888",gray:"#888",cyan:"#4dd",azure:"#6af",navy:"#235",crimson:"#a12",scarlet:"#d21",emerald:"#2b6",jade:"#5b8",ivory:"#ffe",rose:"#e69",lavender:"#b9e",teal:"#288",indigo:"#449",amber:"#fb3",ruby:"#c13",sapphire:"#25b",bronze:"#a73",copper:"#b64",beige:"#dcb",cream:"#ffd",mint:"#9ec",lime:"#9d3",aqua:"#5ee",magenta:"#d3c",plum:"#837",cherry:"#d24",coral:"#f87",cherrypink:"#f6a",peach:"#fb9",wistaria:"#b8e"};
+  const st = { cat:"outfits", prevCat:"outfits", sex:"female", q:"", src:"all", onlyPd:true, grouped:true, page:0, pick:{} };
+  const $ = s => document.querySelector(s);
+  const esc = t => String(t).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  const inCat = (o,c) => c === "all" ? true : c === "weapons" ? /^w/.test(o.c) : o.c === c;
+  const api = () => window.pdApi || null;
+  const title = t => t.replace(/\b[a-z]/g, m => m.toUpperCase());
+  // variant label = colour word found in that variant's own display name; nothing else
+  const colName = o => { const m = o.cl && o.n.match(new RegExp("\\b(" + o.cl.replace(/ /g, "[ -]?") + ")\\b", "i")); return m ? title(m[1].toLowerCase()) : (o.cl ? title(o.cl) : "No colour"); };
+
+  function base(){
+    const q = st.q.trim().toLowerCase();
+    return ALL.filter(o => o.s.includes(st.sex[0])
+      && (st.src === "all" || o.src === st.src)
+      && (!st.onlyPd || o.p || o.c === "acc")
+      && (!q || o.n.toLowerCase().includes(q) || (o.o && o.o.toLowerCase().includes(q)) || String(o.id) === q || (o.dup || []).some(d => String(d) === q)));
+  }
+  function groupsOf(list){
+    const m = new Map();
+    list.forEach(o => { const k = st.grouped ? o.g : o.id; (m.get(k) || m.set(k, []).get(k)).push(o); });
+    return [...m.values()].map(v => v.sort((a,b) => b.p - a.p || (!!b.cl - !!a.cl) || a.cl.localeCompare(b.cl) || a.n.localeCompare(b.n)));
+  }
+  function swatch(o){
+    const w = o.cl.split(" ").pop();
+    return COLORS[w] || "#777";
+  }
+
+  function renderMenu(list){
+    const counts = {all:list.length};
+    list.forEach(o => { counts[o.c] = (counts[o.c]||0)+1; if (/^w/.test(o.c)) counts.weapons = (counts.weapons||0)+1; });
+    const items = (st.q ? [["all","All results"]] : []).concat(MENU).filter(([id]) => id === "all" || counts[id]);
+    if (!counts[st.cat] && st.cat !== "all") { const first = items.find(([id]) => id !== "all"); if (first) { st.cat = first[0]; } }
+    $("#menu").innerHTML = `<div class="h">${st.q ? "Search · all menus" : "Wardrobe"}</div>` + items.map(([id,label,sub]) =>
+      (id === "mounts" ? '<div class="h">Riding</div>' : "") +
+      `<button class="${sub?"sub":""}" data-cat="${id}" aria-pressed="${st.cat===id}"><span>${label}</span><span class="n">${counts[id]||0}</span></button>`).join("");
+    $("#menu").querySelectorAll("button").forEach(b => b.onclick = () => { st.cat = b.dataset.cat; if (!st.q) st.prevCat = st.cat; st.page = 0; render(); });
+  }
+
+  function worn(){
+    const a = api(); if (!a || !a.ready()) return { ids:{}, hair:-1, sex:"" };
+    const s = a.state(); return { ids: a.wornIds(), hair: s.hair, sex: s.sex };
+  }
+  const isWorn = (o, w) => o.hs ? (w.sex[0] === o.s && w.hair === o.hi) : !!w.ids[o.id];
+
+  function iconTag(o){
+    if (o.hs) return `<img class="hs" src="pd/hairthumbs/${esc(o.hs)}" alt="" onload="fxPx(this,76)">`;
+    if (!o.i) return '<span class="ph">?</span>';
+    return `<img src="icons/${esc(o.i)}" alt="" loading="lazy" onload="fxPx(this)" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'ph',textContent:'?'}))">`;
+  }
+  window.fxPx = (img, box) => { // integer scale only
+    const k = Math.max(1, Math.floor((box || 72) / Math.max(img.naturalWidth, img.naturalHeight)));
+    img.style.width = img.naturalWidth * k + "px"; img.style.height = img.naturalHeight * k + "px";
+  };
+
+  function render(){
+    const list = base();
+    if (st.q && !MLABEL[st.cat] && st.cat !== "all") st.cat = "all";
+    if (!st.q && st.cat === "all") st.cat = st.prevCat || "outfits";
+    renderMenu(list);
+    const inView = list.filter(o => inCat(o, st.cat));
+    const groups = groupsOf(inView);
+    const pages = Math.max(1, Math.ceil(groups.length / PER));
+    st.page = Math.min(st.page, pages - 1);
+    const slice = groups.slice(st.page * PER, st.page * PER + PER);
+    const w = worn();
+    const where = st.cat === "all" ? "across all menus" : "in " + MLABEL[st.cat];
+    $("#count").textContent = `${groups.length.toLocaleString()} ${st.grouped ? "looks" : "items"} · ${inView.length.toLocaleString()} items ${st.q ? where : ""}`;
+    $("#pg").textContent = `Page ${st.page+1} / ${pages}`;
+    $("#pageInfo").textContent = st.sex === "male" ? "Showing male-wearable" : "Showing female-wearable";
+    $("#prev").disabled = st.page === 0; $("#next").disabled = st.page >= pages - 1;
+    $("#grid").innerHTML = slice.length ? slice.map((g, gi) => {
+      const o = g[Math.min(st.pick[g[0].g]||0, g.length-1)];
+      const multi = g.length > 1;
+      return `<div class="card${isWorn(o,w)?" on":""}" data-gi="${gi}" title="${esc(o.o || o.n)} · ${esc(LABEL[o.c] || o.c)} · #${esc(o.id)}${o.dup ? " (also #" + o.dup.join(", #") + ")" : ""}">
+        ${o.p || o.c === "acc" ? "" : '<span class="badge">No preview yet</span>'}
+        ${o.c === "acc" ? '<span class="badge info">Browse only</span>' : ""}
+        ${sexTag(o)}
+        ${multi ? `<span class="vars">×${g.length}</span>` : ""}
+        ${st.q ? `<span class="mtag">${esc(MLABEL[o.c] || o.c)}</span>` : ""}
+        <div class="frame">${iconTag(o)}</div><div class="nm">${esc(o.n)}</div>
+        ${o.v ? `<span class="ver" title="Separate version">${esc(o.v)}</span>` : ""}
+        ${multi ? '<div class="sw">' + g.slice(0,12).map((v,vi) => v.cl
+            ? `<i data-v="${vi}" class="${v===o?"cur":""}" style="background:${swatch(v)}" title="${esc(colName(v))}"></i>`
+            : `<i data-v="${vi}" class="base${v===o?" cur":""}" title="${esc(v.n)} (no colour word)">plain</i>`).join("") + "</div>"
+          + `<div class="cn">${esc(colName(o))}</div>` : ""}
+      </div>`;
+    }).join("") : '<div class="empty">Nothing matches. Try another sex, source, search, or untick “Preview only”.</div>';
+    $("#grid").querySelectorAll(".card").forEach(card => {
+      const g = slice[+card.dataset.gi];
+      const cur = () => g[Math.min(st.pick[g[0].g]||0, g.length-1)];
+      const cn = card.querySelector(".cn");
+      card.querySelectorAll("[data-v]").forEach(dot => {
+        dot.onmouseenter = () => { if (cn) cn.textContent = colName(g[+dot.dataset.v]); };
+        dot.onmouseleave = () => { if (cn) cn.textContent = colName(cur()); };
+      });
+      card.onclick = ev => {
+        const v = ev.target.closest("[data-v]");
+        if (v) { st.pick[g[0].g] = +v.dataset.v; ev.stopPropagation(); }
+        endHover(); equip(cur());
+      };
+      card.onmouseenter = () => hover(cur());
+      card.onmouseleave = () => endHover();
+    });
+  }
+
+  function sexTag(o){
+    // Trust the data field: every s:'m' / s:'f' card gets a tag (name may have had (M)/(F) stripped for display).
+    const sx = o.s.length === 1 ? o.s : "";
+    return sx ? `<span class="sxt ${sx}" title="${sx === "f" ? "Female only" : "Male only"}">${sx === "f" ? "♀" : "♂"}</span>` : "";
+  }
+  function syncSex(){
+    const a = api(); if (!a) return;
+    const s = a.state().sex;
+    if (s && s !== st.sex) { st.sex = s; st.page = 0; }
+  }
+  function equip(o){
+    const a = api();
+    if (o.c === "acc") { $("#dollMeta").textContent = `${o.o || o.n} · Accessory · #${o.id}${o.k ? " · " + o.k : ""} — browse only (not shown on the doll).`; return; }
+    if (o.c === "hair" && !o.s.includes(st.sex[0])) {
+      const only = o.s.includes("f") && !o.s.includes("m") ? "Female" : "Male";
+      $("#dollMeta").textContent = only + "-only hairstyle, kept current hair";
+      return;
+    }
+    if (o.hs) {
+      if (!a) return;
+      const w = worn();
+      a.setHair(o.hi, o.s === "m" ? "male" : "female");
+      $("#dollMeta").textContent = "Hair: " + o.n;
+      syncSex(); return render();
+    }
+    if (!o.p) { $("#dollMeta").textContent = o.n + " — no paper-doll sprite yet."; return; }
+    Promise.resolve(window.tryOn({ id: o.id, name: o.n })).then(() => { syncSex(); render(); });
+  }
+  let snap = null;
+  function hover(o){
+    const a = api(); const w = worn();
+    if (o.c === "acc") { $("#hoverTag").textContent = "Accessory (browse only): " + (o.o || o.n); return; }
+    if (o.c === "hair" && !o.s.includes(st.sex[0])) return;
+    if (!o.p || !a || isWorn(o, w)) { $("#hoverTag").textContent = o.p ? "" : "No preview for " + o.n; return; }
+    if (!snap) snap = a.state();
+    $("#hoverTag").textContent = "Previewing: " + o.n;
+    if (o.hs) a.setHair(o.hi, o.s === "m" ? "male" : "female"); else a.wear(o.id);
+  }
+  function endHover(){
+    $("#hoverTag").textContent = "";
+    if (!snap) return;
+    const s = snap; snap = null; api().restore(s);
+  }
+
+  document.querySelectorAll("#dollSex [data-sex]").forEach(b => b.addEventListener("click", () => {
+    endHover();
+    st.sex = b.dataset.sex; st.page = 0;
+    const gone = api() ? api().dropIncompatible(st.sex) : [];
+    if (gone.length) $("#dollMeta").textContent = "Removed (not wearable as " + st.sex + "): " + gone.join(", ");
+    render();
+  }));
+  $("#q").oninput = e => {
+    const was = !!st.q; st.q = e.target.value; st.page = 0;
+    if (st.q && !was) { st.prevCat = st.cat === "all" ? st.prevCat : st.cat; st.cat = "all"; }
+    render();
+  };
+  $("#src").onchange = e => { st.src = e.target.value; st.page = 0; render(); };
+  $("#onlyPd").onchange = e => { st.onlyPd = e.target.checked; st.page = 0; render(); };
+  $("#grouped").onchange = e => { st.grouped = e.target.checked; st.page = 0; render(); };
+  $("#prev").onclick = () => { st.page--; render(); scrollTo(0,0); };
+  $("#next").onclick = () => { st.page++; render(); scrollTo(0,0); };
+  $("#dollClear") && $("#dollClear").addEventListener("click", () => setTimeout(render, 0));
+  const u = new URLSearchParams(location.search);
+  if (u.get("sex")) document.querySelector(`#dollSex [data-sex="${u.get("sex")}"]`)?.click();
+  if (u.get("cat") && MLABEL[u.get("cat")]) st.cat = st.prevCat = u.get("cat");
+  if (u.get("all") === "1") { st.onlyPd = false; $("#onlyPd").checked = false; }
+  syncSex();
+  window.fashionState = st; window.fashionEquip = id => { const o = ALL.find(x => String(x.id) === String(id)); if (o) equip(o); };
+  render();
+})();
+</script>
+</body>
+</html>

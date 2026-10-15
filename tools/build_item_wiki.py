@@ -857,6 +857,20 @@ HTML = r"""<!doctype html>
       color: var(--ink-on-gold);
       border-color: #f0d48a;
     }
+    .tabs a {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 92px;
+      min-height: 42px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: transparent;
+      color: var(--ink);
+      text-decoration: none;
+    }
+    .tabs a:hover { border-color: var(--gold); color: var(--gold-strong); }
     .shell {
       display: grid;
       grid-template-columns: 260px minmax(0, 1fr);
@@ -1136,7 +1150,7 @@ HTML = r"""<!doctype html>
     }
     @media (max-width: 900px) {
       .topbar-inner { grid-template-columns: 1fr; gap: 12px; }
-      .tabs button { flex: 1; }
+      .tabs button, .tabs a { flex: 1; }
       .workspace { grid-template-columns: 1fr; }
       .tryon { position: static; max-height: none; }
     }
@@ -1218,6 +1232,7 @@ HTML = r"""<!doctype html>
       <div class="tabs" id="tabs" role="tablist" aria-label="Catalog">
         <button type="button" data-tab="items" aria-pressed="true">Items</button>
         <button type="button" data-tab="skills">Skills</button>
+        <a href="fashion.html">Wardrobe</a>
       </div>
     </div>
   </header>
