@@ -36,7 +36,9 @@ TYPE_SLOT = {
     "衣服": "body", "頭飾": "head", "手套": "hands", "鞋子": "feet",
     "披風": "back", "背包": "back",
 }
-# Two-handed when the type says so and the left hand is empty or has no L sheet.
+# Bows, spears and staves equip in the right hand only, so the type is
+# two-handed. Axes and hammers equip in either hand, like swords; they are
+# two-handed only when the left hand is empty or there is no L sheet.
 TWO_HAND_TYPES = {"弓箭", "槍", "杖", "斧", "錘"}
 ASIAN_TEXT = re.compile(r"[\u3400-\u9fff\u3040-\u30ff\uac00-\ud7af]")
 LATIN_TEXT = re.compile(r"[A-Za-z]")
@@ -543,11 +545,15 @@ def derive_two_handed(
     has_l_sprite: bool,
     doll: dict | None,
 ) -> bool:
-    """Bow, spear, staff, axe and hammer are two-handed when the off hand is empty.
+    """Main-hand weapons that also occupy the off hand.
 
-    A paper-doll weapon whose doll row sets 副手裝備 without its own 副手 part is
-    the same idea, and so is a weapon with both hand flags but no L sheet
-    (the cool chainsaw). An L sheet means the piece can actually sit in the off hand.
+    Bows (弓箭), spears (槍) and staves (杖) are right-hand only in the item
+    table, and the sprite is a two-handed weapon even when a left sheet exists.
+    Swords, axes and hammers may sit in either hand. Those are two-handed only
+    when there is no distinct L sheet (a two-handed sword, or the cool chainsaw).
+    A paper-doll row with 副手裝備, a main part and no off part is the same
+    occupation when it has no L sheet. An L sheet means the piece can sit in
+    the off hand, so it stays one-handed.
     """
     if slot != "main":
         return False
@@ -1411,6 +1417,10 @@ def main() -> None:
             print(f"  gear {gear_added}...")
 
     if mixed_flexible:
+        # One look, several items, and their 右手/左手 flags do not agree
+        # (a hammer sharing a doll with a tiara, or one bow entered both ways).
+        # flexibleHands stays false unless every row agrees. That does not
+        # by itself mark the group two-handed.
         print(
             f"warning: flexibleHands disagreed inside {len(mixed_flexible)} groups; "
             f"left False unless every row agreed"

@@ -2,18 +2,15 @@
 
 These paper-doll items use a doll row marked `變身換圖`. The body component is a full character sprite, not a hat, coat, or other single clothing layer. Categories are left as they are.
 
-467 items. 28 are already Shapeshift. 439 are filed under another category for a person to confirm.
+467 items. 32 are already Shapeshift. 435 are filed under another category for a person to confirm.
 
 | category | items |
 | --- | ---: |
-| Fashion | 394 |
-| Fashion Head | 29 |
-| Shapeshift | 28 |
+| Fashion | 423 |
+| Shapeshift | 32 |
 | Outfits | 5 |
 | Skill EXP Orb | 5 |
-| Fashion Body | 3 |
 | Back | 2 |
-| Fashion Wings | 1 |
 
 | id | name | category | reason |
 | --- | --- | --- | --- |
@@ -24,7 +21,7 @@ These paper-doll items use a doll row marked `變身換圖`. The body component 
 | 3941 | Snowman(Green) | Fashion | Doll 99 body component 1539 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 6308 | Japanese Watermelon Shapeshift | Shapeshift | Doll 250 body component 1886 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 6390 | Summer Limited Watermelon Suit | Outfits | Doll 250 body component 1886 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 8183 | Ji Mi Mouse's whole body transformation | Fashion | Doll 396 body component 2170 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 8183 | Ji Mi Mouse's whole body transformation | Shapeshift | Doll 396 body component 2170 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 8342 | wild boar | Fashion | Doll 430 body component 2169 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 8566 | cute mouse | Fashion | Doll 396 body component 2170 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 8919 | Miki Shapeshifting | Shapeshift | Doll 396 body component 2170 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
@@ -34,7 +31,7 @@ These paper-doll items use a doll row marked `變身換圖`. The body component 
 | 11127 | eden's ghost | Fashion | Doll 713 body component 2652 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 11228 | snowman | Fashion | Doll 85 body component 1255 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 11699 | Shapashift to Pink Mic | Fashion | Doll 777 body component 2840 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 12060 | Snowman | Fashion Body | Doll 831 body component 2861 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 12060 | Snowman | Fashion | Doll 831 body component 2861 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 12545 | Shapeshifting Tricky Imp | Shapeshift | Doll 713 body component 2652 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 12647 | blue snow | Fashion | Doll 920 body component 3063 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 12807 | lady snow | Fashion | Doll 922 body component 3062 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
@@ -76,8 +73,8 @@ These paper-doll items use a doll row marked `變身換圖`. The body component 
 | 27410 | Enchanted Shapeshifting Baby Draxy | Shapeshift | Doll 1596 body component 4707 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 27911 | Enchanted Shapeshifting Mini Draxy | Shapeshift | Doll 1597 body component 4708 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 27912 | Enchanted-Shapeshift Lil' Green Dragon | Shapeshift | Doll 1598 body component 4709 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 27913 | Enchanted-Potpourri Patchwork Bear | Fashion Head | Doll 1599 body component 4710 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 27914 | Enchanted -Tea Tree Patchwork Bear | Fashion Head | Doll 1600 body component 4711 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 27913 | Enchanted-Potpourri Patchwork Bear | Fashion | Doll 1599 body component 4710 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 27914 | Enchanted -Tea Tree Patchwork Bear | Fashion | Doll 1600 body component 4711 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 27915 | Enchanted-Shapeshift Star Chess | Shapeshift | Doll 1601 body component 4712 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 27916 | Enchanted-Shapeshift Pure Chess | Shapeshift | Doll 1602 body component 4713 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 28224 | White and Taiga | Fashion | Doll 1653 body component 4752 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
@@ -134,7 +131,7 @@ These paper-doll items use a doll row marked `變身換圖`. The body component 
 | 36273 | 1 Laview | Fashion | Doll 1227 body component 3450 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 36354 | Enchanted- Droplet Piglet | Fashion | Doll 1982 body component 5538 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 36355 | Enchanted- Flame Piglet | Fashion | Doll 1981 body component 5537 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 36356 | Enchanted- Earthy Piglet | Fashion Head | Doll 1983 body component 5539 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 36356 | Enchanted- Earthy Piglet | Fashion | Doll 1983 body component 5539 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 36357 | Enchanted- Breezy Piglet | Fashion | Doll 1980 body component 5540 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 36358 | Enchanted- Flying Piglet | Fashion | Doll 1979 body component 5536 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 36918 | The Bear - The Bear. | Fashion | Doll 1599 body component 4710 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
@@ -147,7 +144,7 @@ These paper-doll items use a doll row marked `變身換圖`. The body component 
 | 38671 | O Lantern King | Fashion | Doll 2098 body component 5789 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 38730 | Enchanted-Shapeshift Pumpkin Bumpkin | Shapeshift | Doll 2098 body component 5789 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 38751 | Enchanted- Patchy Teddy | Fashion | Doll 2136 body component 5655 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 39297 | The Devil Transformed - Pink Rabbit | Fashion | Doll 2159 body component 5656 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 39297 | The Devil Transformed - Pink Rabbit | Shapeshift | Doll 2159 body component 5656 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 39298 | The Devil Becomes - Orange Bear Puppies | Fashion | Doll 2158 body component 5655 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 39864 | Horse the Kid | Fashion | Doll 2146 body component 5836 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 39986 | Lady Snow (14th) | Fashion | Doll 922 body component 3062 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
@@ -161,10 +158,10 @@ These paper-doll items use a doll row marked `變身換圖`. The body component 
 | 40350 | The Cowboy Horse. | Fashion | Doll 2146 body component 5836 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 40443 | The Devil - The Rabbit Rabbit | Fashion | Doll 2208 body component 5941 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 40592 | Enchanted- Shapeshift Patched Rabbit | Shapeshift | Doll 2159 body component 5656 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 40926 | Enchanted- Patchy Bear | Fashion Head | Doll 2267 body component 5981 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 40926 | Enchanted- Patchy Bear | Fashion | Doll 2267 body component 5981 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 42284 | The Bear - Orange Bear | Fashion | Doll 2134 body component 5825 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 42504 | The Devil - The Equipment Man. | Fashion | Doll 2350 body component 5644 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 42523 | bear baby | Fashion | Doll 2134 body component 5825 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 42523 | bear baby | Shapeshift | Doll 2134 body component 5825 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 42566 | The whole body of the bear (30 days) | Fashion | Doll 2267 body component 5981 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 43179 | Enchanted- Puffy Baa (60 days) | Fashion | Doll 2203 body component 5848 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 43438 | Enchanted- Shapeshifting Rodeo | Shapeshift | Doll 2146 body component 5836 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
@@ -186,11 +183,11 @@ These paper-doll items use a doll row marked `變身換圖`. The body component 
 | 46287 | The hot source of the monkey. | Fashion | Doll 2538 body component 6256 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 46409 | The Devil - The Devil (30 Days) | Fashion | Doll 2203 body component 5848 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 46607 | Enchanted- Capri Mouse | Fashion | Doll 2578 body component 6534 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 46833 | Buriki Mk2 | Fashion | Doll 2552 body component 6422 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 46833 | Buriki Mk2 | Shapeshift | Doll 2552 body component 6422 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 47002 | Enchanted- Foolmoo | Fashion | Doll 2608 body component 6568 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 47840 | and the wicked wicked. | Fashion | Doll 2673 body component 6623 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 47858 | The Cold Cold Cold Baby | Fashion | Doll 2674 body component 6624 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 48027 | Enchanted- Blobble | Fashion Head | Doll 2577 body component 6533 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 48027 | Enchanted- Blobble | Fashion | Doll 2577 body component 6533 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 48063 | Love Niu PD | Fashion | Doll 2608 body component 6568 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 48439 | Enchanted- Pinkpatch Bunny | Fashion | Doll 2159 body component 5656 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 48969 | The Devil Brother. | Fashion | Doll 3767 body component 7715 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
@@ -248,9 +245,9 @@ These paper-doll items use a doll row marked `變身換圖`. The body component 
 | 54492 | The Fire Angel. | Fashion | Doll 2786 body component 6702 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 54534 | The Devil - The Royal King | Fashion | Doll 1595 body component 4526 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 54798 | Enchanted- Universiade Bravo | Fashion | Doll 3189 body component 7267 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 55550 | Enchanted- Energy Chimp | Fashion Head | Doll 3062 body component 7034 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 55550 | Enchanted- Energy Chimp | Fashion | Doll 3062 body component 7034 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 57023 | The Devil - Lavender | Fashion | Doll 3275 body component 7319 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 57483 | Enchanted- Star Snowy | Fashion Body | Doll 3349 body component 7498 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 57483 | Enchanted- Star Snowy | Fashion | Doll 3349 body component 7498 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 57576 | Horse the Rook | Fashion | Doll 3350 body component 7499 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 57577 | The Tea Girl | Fashion | Doll 3351 body component 7500 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 57833 | The dog. | Fashion | Doll 3383 body component 7469 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
@@ -266,7 +263,7 @@ These paper-doll items use a doll row marked `變身換圖`. The body component 
 | 58158 | Squid girl PD (devil) | Fashion | Doll 3419 body component 7475 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 58159 | Squid Girl PD (Commercial) | Fashion | Doll 3420 body component 7476 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 58160 | Valentine Squid Girl PD | Fashion | Doll 3421 body component 7477 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 58204 | Enchanted- Paperbox Kitty | Fashion Head | Doll 2857 body component 6759 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 58204 | Enchanted- Paperbox Kitty | Fashion | Doll 2857 body component 6759 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 58221 | Squid Girl PD | Fashion | Doll 3417 body component 7473 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 58226 | Squid Girl PD | Fashion | Doll 3417 body component 7473 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 58227 | Squid Girl PD (war) | Fashion | Doll 3418 body component 7474 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
@@ -301,15 +298,15 @@ These paper-doll items use a doll row marked `變身換圖`. The body component 
 | 60462 | The Devil, the Angel. | Fashion | Doll 2788 body component 6704 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 60463 | The angel of Snow White. | Fashion | Doll 2794 body component 6710 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 60482 | Enchanted- Gold Monkey | Fashion | Doll 3634 body component 7795 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 60589 | Enchanted- Goldiegho | Fashion Head | Doll 3653 body component 7827 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 60590 | Style- Palegho | Fashion Head | Doll 3410 body component 7558 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 60591 | Enchanted- Jack-O' | Fashion Head | Doll 2098 body component 5789 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 60592 | Style- White Jack-O' | Fashion Head | Doll 3654 body component 7828 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 60589 | Enchanted- Goldiegho | Fashion | Doll 3653 body component 7827 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 60590 | Style- Palegho | Fashion | Doll 3410 body component 7558 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 60591 | Enchanted- Jack-O' | Fashion | Doll 2098 body component 5789 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 60592 | Style- White Jack-O' | Fashion | Doll 3654 body component 7828 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 60714 | time and space box | Fashion | Doll 3686 body component 7852 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 60814 | navy cat | Fashion | Doll 3700 body component 7889 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 60815 | The Bright Grey. | Fashion | Doll 3701 body component 7890 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 61474 | The Bear - The Bear. | Fashion | Doll 3613 body component 7777 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 61613 | Enchanted- Grumpkin | Fashion Head | Doll 3685 body component 7851 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 61613 | Enchanted- Grumpkin | Fashion | Doll 3685 body component 7851 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 61902 | Poohtaro | Fashion | Doll 3767 body component 7715 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 61903 | Pooh Jiro | Fashion | Doll 3768 body component 7716 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 61904 | Pooh Saburo | Fashion | Doll 3766 body component 7714 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
@@ -320,16 +317,16 @@ These paper-doll items use a doll row marked `變身換圖`. The body component 
 | 63108 | The Bear - The Bear Bear | Fashion | Doll 3817 body component 7994 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 63109 | The gentle Rabbit. | Fashion | Doll 3818 body component 7995 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 63113 | love rabbit girl | Fashion | Doll 3765 body component 7713 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 63114 | Style- Bucky Bear | Fashion Head | Doll 3817 body component 7994 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 63115 | Style- Bucky Bunny | Fashion Body | Doll 3818 body component 7995 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 63114 | Style- Bucky Bear | Fashion | Doll 3817 body component 7994 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 63115 | Style- Bucky Bunny | Fashion | Doll 3818 body component 7995 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 63129 | Enchanted- Pigsy (Green) | Fashion | Doll 3820 body component 7714 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 63130 | Enchanted- Pigsy (Red) | Fashion | Doll 3821 body component 7997 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 63131 | Enchanted- Pigsy (Black) | Fashion | Doll 3822 body component 7998 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 64175 | Enchanted- Ivory Kitty | Fashion Head | Doll 3994 body component 8159 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 64176 | Style- Ivory Kitty | Fashion Head | Doll 3994 body component 8159 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 64177 | Style- Ebony Kitty | Fashion Head | Doll 3995 body component 8160 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 64175 | Enchanted- Ivory Kitty | Fashion | Doll 3994 body component 8159 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 64176 | Style- Ivory Kitty | Fashion | Doll 3994 body component 8159 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 64177 | Style- Ebony Kitty | Fashion | Doll 3995 body component 8160 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 64336 | The Dark Ghost | Fashion | Doll 4023 body component 8176 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 64630 | Enchanted- Royal Pup | Fashion Head | Doll 4046 body component 8197 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 64630 | Enchanted- Royal Pup | Fashion | Doll 4046 body component 8197 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 64696 | Enchanted- Eerie Patched Teddy | Fashion | Doll 4048 body component 8198 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 64876 | pink chividora | Fashion | Doll 4063 body component 8251 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 64877 | The Flying White Cat. | Fashion | Doll 4064 body component 8252 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
@@ -374,7 +371,7 @@ These paper-doll items use a doll row marked `變身換圖`. The body component 
 | 70049 | Fresh Snow - Fresh Snow | Fashion | Doll 4688 body component 8722 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 70289 | Phantom Star Spirit | Fashion | Doll 4622 body component 8675 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 70531 | The Holy Spirit - The Holy Spirit | Fashion | Doll 4450 body component 8717 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 70813 | Enchanted- Mystic Snowman (30 Days) | Fashion Wings | Doll 4737 body component 8755 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 70813 | Enchanted- Mystic Snowman (30 Days) | Fashion | Doll 4737 body component 8755 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 70845 | chibi night | Fashion | Doll 4725 body component 8581 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 70846 | Chibi Medjed | Fashion | Doll 3410 body component 7558 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 71147 | The Tea Tiger | Fashion | Doll 4656 body component 8707 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
@@ -402,15 +399,15 @@ These paper-doll items use a doll row marked `變身換圖`. The body component 
 | 74112 | Enchanted- Shapeshifting Golden Rabbit | Shapeshift | Doll 2862 body component 6760 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 74113 | Enchanted- Shapeshifting Pink Rabbit | Shapeshift | Doll 4443 body component 8573 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 74114 | Enchanted- Shapeshifting Gray Rabbit | Shapeshift | Doll 1656 body component 4755 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 74380 | Enchanted- Chef Paprika | Fashion Head | Doll 5164 body component 9097 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 74381 | Enchanted- Chef Cauliflower | Fashion Head | Doll 5165 body component 9098 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 74382 | Enchanted- Chef Mackerel | Fashion Head | Doll 5166 body component 9099 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 74383 | Enchanted- Chef Onion | Fashion Head | Doll 5167 body component 9100 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 74384 | Enchanted- Chef Bamboo Charcoal | Fashion Head | Doll 5168 body component 9101 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 74380 | Enchanted- Chef Paprika | Fashion | Doll 5164 body component 9097 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 74381 | Enchanted- Chef Cauliflower | Fashion | Doll 5165 body component 9098 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 74382 | Enchanted- Chef Mackerel | Fashion | Doll 5166 body component 9099 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 74383 | Enchanted- Chef Onion | Fashion | Doll 5167 body component 9100 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 74384 | Enchanted- Chef Bamboo Charcoal | Fashion | Doll 5168 body component 9101 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 74912 | Enchanted- Gold Wood Spirit | Fashion | Doll 5260 body component 9221 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 74913 | Enchanted- Emerald Wood Spirit | Fashion | Doll 5261 body component 9222 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 74920 | The Remote Guard. | Fashion | Doll 4841 body component 8582 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 74936 | Enchanted- Red Merling | Fashion Head | Doll 5262 body component 9223 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 74936 | Enchanted- Red Merling | Fashion | Doll 5262 body component 9223 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 75274 | The Black Warrior Dog (PD) | Fashion | Doll 5296 body component 9255 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 75472 | Enchanted- Green Beer Bubble Elf | Fashion | Doll 5376 body component 9278 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 75473 | Enchanted- Beer Bubble Elf | Fashion | Doll 5377 body component 9279 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
@@ -449,14 +446,14 @@ These paper-doll items use a doll row marked `變身換圖`. The body component 
 | 78412 | The cloud smoke | Fashion | Doll 5354 body component 9254 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 78413 | Fu Ce | Fashion | Doll 5350 body component 9250 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 78414 | Fu Ce(3 days) | Fashion | Doll 5350 body component 9250 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 78449 | Enchanted- Lime Bear Cub | Fashion Head | Doll 5725 body component 9625 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 78450 | Enchanted- Pink Bear Cub | Fashion Head | Doll 5726 body component 9626 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 78449 | Enchanted- Lime Bear Cub | Fashion | Doll 5725 body component 9625 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 78450 | Enchanted- Pink Bear Cub | Fashion | Doll 5726 body component 9626 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 80049 | The Holy Knight - The Holy Knight | Fashion | Doll 5317 body component 9137 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 80407 | 80407 | Fashion | Doll 4622 body component 8675 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 80504 | Enchanted- Crimson Candy Man | Fashion Head | Doll 5993 body component 9855 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 80505 | Enchanted- Sky Blue Candy Man | Fashion Head | Doll 5994 body component 9856 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 80506 | Enchanted- Lime Green Candy Man | Fashion Head | Doll 5995 body component 9857 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
-| 80507 | Enchanted- Cool Candy Man | Fashion Head | Doll 5996 body component 9858 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 80504 | Enchanted- Crimson Candy Man | Fashion | Doll 5993 body component 9855 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 80505 | Enchanted- Sky Blue Candy Man | Fashion | Doll 5994 body component 9856 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 80506 | Enchanted- Lime Green Candy Man | Fashion | Doll 5995 body component 9857 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
+| 80507 | Enchanted- Cool Candy Man | Fashion | Doll 5996 body component 9858 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 80994 | The Devil - Brookappa | Fashion | Doll 6052 body component 9906 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 80995 | The Devil - Reed Cappa | Fashion | Doll 6053 body component 9907 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |
 | 80996 | The Devil - Goliath Cappa | Fashion | Doll 6054 body component 9908 is marked 變身換圖. That sprite replaces the whole character instead of a clothing layer. |

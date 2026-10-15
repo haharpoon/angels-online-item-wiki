@@ -19,7 +19,10 @@ from extract_local_pd import (
     classify_local_item,
     derive_flexible,
     derive_two_handed,
+    hand_lists,
+    hands_disagree,
     load_dolls,
+    load_items,
     shadow_sheet_ids,
 )
 from report_shapeshift import REPORT, collect_shapeshift_candidates, render_report
@@ -70,47 +73,133 @@ def test_wrong_slot_examples_are_not_doll_rows():
             assert slot not in doll["parts"]
 
 
-def test_two_handed_matches_the_existing_seventeen():
+# Wiki records already flagged before local weapons were extracted.
+# A client rebuild adds bows, staves, spears and two-handed swords on top.
+WIKI_TWO_HANDED = {
+    6551, 11581, 3534, 12686, 11603, 15131, 7278, 15127, 7464, 3518,
+    12117, 15129, 11592, 7288, 7268, 9697, 6667,
+}
+_GEAR_SLOTS = {"head", "body", "hands", "feet", "back", "main", "off"}
+
+
+def _has_l_sprite(rec: dict) -> bool:
+    return any(
+        str(key).endswith("l") or str(key).endswith("l-mounted")
+        for sex in (rec.get("components") or {}).values()
+        for pose in sex.values()
+        if isinstance(pose, dict)
+        for key in pose.values()
+    )
+
+
+def _two_handed_inputs(rec: dict, dolls: dict, by_id: dict) -> dict:
+    """Same inputs extract_wear_group passes to derive_two_handed."""
+    ids = []
+    for iid in [rec.get("item_id"), *(rec.get("itemIds") or [])]:
+        if iid is not None and int(iid) not in ids:
+            ids.append(int(iid))
+    rows = [row for iid in ids for row in by_id.get(iid, [])]
+    look = int(rec["appearanceIds"][0]) if rec.get("appearanceIds") else None
+    vid = str(rec.get("visualId") or "")
+    doll = None
+    slot = "main"
+    if vid.startswith("local-"):
+        bit = vid.split("-")[1]
+        if bit in _GEAR_SLOTS:
+            slot = bit
+        elif look in dolls:
+            doll = dolls[look]
+    elif look in dolls and "main" in dolls[look]["parts"]:
+        doll = dolls[look]
+    if doll and "main" in doll["parts"]:
+        slot = "main"
+    types = {row["type"] for row in rows}
+    rights, lefts = hand_lists(rows)
+    if not rights:
+        types = types or ({"紙娃娃"} if doll else set())
+        rights = [True]
+        lefts = [bool((rec.get("flags") or {}).get("flexibleHands"))]
+    return {
+        "slot": slot if slot == "main" else "",
+        "types": types,
+        "right_flags": rights,
+        "left_flags": lefts,
+        "has_l_sprite": _has_l_sprite(rec),
+        "doll": doll,
+    }
+
+
+def test_two_handed_follows_the_weapon_and_the_sprite():
+    """The 17 wiki weapons stay two-handed. Local bows, staves, spears and
+    two-handed swords are two-handed too, so the catalog count is not frozen."""
+    assert derive_two_handed(
+        slot="main", types={"弓箭"}, right_flags=[True], left_flags=[False],
+        has_l_sprite=True, doll=None,
+    )
+    assert derive_two_handed(
+        slot="main", types={"杖"}, right_flags=[True], left_flags=[False],
+        has_l_sprite=True, doll=None,
+    )
+    assert derive_two_handed(
+        slot="main", types={"槍"}, right_flags=[True], left_flags=[False],
+        has_l_sprite=False, doll=None,
+    )
+    # Either-hand sword with its own L sheet. A two-handed sword has no L sheet.
+    assert not derive_two_handed(
+        slot="main", types={"劍"}, right_flags=[True], left_flags=[True],
+        has_l_sprite=True, doll=None,
+    )
+    assert derive_two_handed(
+        slot="main", types={"劍"}, right_flags=[True], left_flags=[True],
+        has_l_sprite=False, doll=None,
+    )
+    # Axes and hammers are either-hand. An L sheet keeps the shield hand free.
+    assert not derive_two_handed(
+        slot="main", types={"斧"}, right_flags=[True], left_flags=[True],
+        has_l_sprite=True, doll=None,
+    )
+    assert not derive_two_handed(
+        slot="main", types={"錘"}, right_flags=[True], left_flags=[True],
+        has_l_sprite=True, doll=None,
+    )
+    assert derive_two_handed(
+        slot="main", types={"斧"}, right_flags=[True], left_flags=[True],
+        has_l_sprite=False, doll=None,
+    )
+    assert not derive_two_handed(
+        slot="off", types={"盾"}, right_flags=[False], left_flags=[True],
+        has_l_sprite=False, doll=None,
+    )
+    # Mixed 右手/左手 on one look cannot be flexible. It is not therefore two-handed.
+    assert hands_disagree([{"flexible": False}, {"flexible": True}])
+    assert not derive_flexible(
+        slot="main", two_handed=False, right_flags=[True, True], left_flags=[False, True],
+        has_l_sprite=True,
+    )
+
     catalog = json.loads(CATALOG.read_text(encoding="utf-8"))
     dolls = load_dolls(DB)
+    by_id: dict[int, list] = {}
+    for row in load_items(DB):
+        by_id.setdefault(row["id"], []).append(row)
     flagged = []
-    predicted = []
+    mismatched = []
     for rec in catalog["items"]:
         if "main" not in (rec.get("componentIds") or {}):
             continue
-        look = int(rec["appearanceIds"][0])
-        doll = dolls.get(look)
-        # The seventeen have no L sheet in the catalog.
-        has_l = any(
-            str(key).endswith("l") or str(key).endswith("l-mounted")
-            for sex in (rec.get("components") or {}).values()
-            for pose in sex.values()
-            for key in pose.values()
-        )
-        two = derive_two_handed(
-            slot="main",
-            types={"紙娃娃"},
-            right_flags=[True],
-            left_flags=[bool(rec["flags"].get("flexibleHands"))],
-            has_l_sprite=has_l,
-            doll=doll,
-        )
-        # Chainsaw is both-hands in the item table and has no L sheet.
-        if rec["item_id"] == 9697:
-            two = derive_two_handed(
-                slot="main",
-                types={"紙娃娃"},
-                right_flags=[True],
-                left_flags=[True],
-                has_l_sprite=False,
-                doll=doll,
-            )
-        if rec["flags"].get("twoHanded"):
+        got = bool((rec.get("flags") or {}).get("twoHanded"))
+        expected = derive_two_handed(**_two_handed_inputs(rec, dolls, by_id))
+        if got:
             flagged.append(rec["item_id"])
-        if two:
-            predicted.append(rec["item_id"])
-    assert len(flagged) == 17, flagged
-    assert set(predicted) == set(flagged)
+            occupies = (rec.get("placements") or [{}])[0].get("occupies") or []
+            if "off" not in occupies:
+                mismatched.append((rec["item_id"], rec.get("name"), "flag set but off hand is free", occupies))
+        if got != expected:
+            mismatched.append((rec["item_id"], rec.get("name"), got, expected))
+    missing = sorted(WIKI_TWO_HANDED - set(flagged))
+    assert not missing, missing
+    assert not mismatched, mismatched[:12]
+    assert len(flagged) >= len(WIKI_TWO_HANDED)
 
 
 def test_flexible_needs_an_l_sheet():
@@ -191,7 +280,7 @@ def test_pack_atlas_rejects_gaps_and_placeholders():
 if __name__ == "__main__":
     test_shadow_sheets()
     test_wrong_slot_examples_are_not_doll_rows()
-    test_two_handed_matches_the_existing_seventeen()
+    test_two_handed_follows_the_weapon_and_the_sprite()
     test_flexible_needs_an_l_sheet()
     test_english_name_preference()
     test_tint_defaults()
