@@ -10,7 +10,7 @@ import json
 import re
 import sqlite3
 import xml.etree.ElementTree as ET
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
 
 from client_paths import configured_extract
@@ -144,6 +144,267 @@ GROUP_ORDER = [
 ]
 
 
+# Menu labels for paper-doll clothes. Gloves is also an armor kind; the
+# fashion path forces group Fashion so the two lists stay apart.
+FASHION_MENU_KIND = {
+    "shoes": "Shoes",
+    "gloves": "Gloves",
+    "hats": "Hats",
+    "back": "Back",
+    "outfits": "Outfits",
+    "face": "Face",
+    "hair": "Hair",
+    "acc": "Accessories",
+}
+FASHION_MENU_KINDS = set(FASHION_MENU_KIND.values())
+# Kinds the translated-name pass is allowed to replace. A scroll or a key
+# that NAME_KIND already claimed stays put.
+FASHION_RECLASSIFY = {
+    "Fashion", "Fashion Head", "Fashion Body", "Fashion Feet",
+    "Fashion Hands", "Fashion Wings", "Shapeshift",
+    *FASHION_MENU_KINDS,
+}
+
+# First match wins. Shoes and gloves beat a set-name word (Wing Boots, Dress
+# Gloves). Hats beat wings (Wing Hat). Bags, rifles, guns and surfboards are
+# Back. A tail cape, charm, or hair ornament is an accessory even when the
+# rest of the name says hood, gown, or hair.
+_FASHION_EN = [
+    ("acc", re.compile(
+        r"\bcharms?\b|\bscar(?:f|ves)\b|hair\s*ornaments?|\bhairbands?\b|\bhairpins?\b"
+        r"|\bhalos?\b|\bearmuffs?\b|\bbracelets?\b|\bbrooch(?:es)?\b|\bbadges?\b|tail\s+capes?",
+        re.I,
+    )),
+    ("shoes", re.compile(
+        r"\bshoes?\b|\bboots?\b|\bsandals?\b|\bslippers?\b|\bsneakers?\b|\bgeta\b"
+        r"|\bclogs?\b|\bheels?\b|\bloafers?\b|\bspikes?\b|\bfootwear\b|\bsocks?\b",
+        re.I,
+    )),
+    ("gloves", re.compile(r"\bgloves?\b|\bgauntlets?\b|\bmittens?\b|\bmitts?\b", re.I)),
+    ("face", re.compile(
+        r"\bmasks?\b|\bglasses\b|\bgoggles\b|\bsunglasses\b|\bspectacles?\b|\bbibs?\b"
+        r"|\bearrings?\b|\bbeards?\b|\bmonocles?\b",
+        re.I,
+    )),
+    ("hats", re.compile(
+        r"\bhats?\b|\bhelms?\b|\bhelmets?\b|\bcirclets?\b|\btiaras?\b|\bcrowns?\b|\bhorns?\b"
+        r"|\bcaps?\b|\bberets?\b|\bhoods?\b|\bheadbands?\b|\bheaddress(?:es)?\b|\bbonnets?\b|\bears\b",
+        re.I,
+    )),
+    ("hair", re.compile(
+        r"\bhairs?\b|\bhairstyles?\b|\bponytails?\b|\bwigs?\b|\bafros?\b|\bbobs?\b|\bbangs?\b|\bbuns?\b",
+        re.I,
+    )),
+    ("outfits", re.compile(
+        r"\bsundress(?:es)?\b|\bdress(?:es)?\b|\bcoats?\b|\brobes?\b|\bsuits?\b|\bshirts?\b"
+        r"|\bjackets?\b|\bskirts?\b|\bpants\b|\bgowns?\b|\bjerseys?\b|\bkimonos?\b"
+        r"|\buniforms?\b|\barmou?rs?\b|\bclothes\b|\bclothing\b|\btunics?\b|\bvests?\b|\boutfits?\b",
+        re.I,
+    )),
+    ("back", re.compile(
+        r"\bbags?\b|\bbackpacks?\b|\bwings?\b|\bcapes?\b|\bcloaks?\b|\bmantles?\b"
+        r"|\brifles?\b|\bguns?\b|\bsurfboards?\b|surf\s*boards?",
+        re.I,
+    )),
+]
+# A body-armor gown that mentions wings is still a gown. These words are the
+# back pieces that were filed under head or body by mistake.
+_BACK_GEAR = re.compile(
+    r"\bbags?\b|\bbackpacks?\b|\bcapes?\b|\bcloaks?\b|\bmantles?\b"
+    r"|\brifles?\b|\bguns?\b|\bsurfboards?\b|surf\s*boards?",
+    re.I,
+)
+_FASHION_CJK = [
+    ("shoes", re.compile(r"靴|シューズ|サンダル|下駄|スパイク")),
+    ("gloves", re.compile(r"手套|グローブ")),
+    ("face", re.compile(r"眼鏡|眼镜|面具|口罩|ゴーグル")),
+    ("hats", re.compile(r"ヘッドドレス|帽子|頭盔|头盔")),
+    ("hair", re.compile(r"髪型|髮型|发型|ウィッグ")),
+    ("back", re.compile(r"背包|披風|披风|翅膀|マント|サーフボード|ライフル|銃")),
+    ("outfits", re.compile(r"ワンピース|ドレス|浴衣|着物")),
+    ("acc", re.compile(r"髪飾り|髮飾|ブローチ|スカーフ")),
+]
+
+
+def _fashion_match(text: str, rules) -> str | None:
+    for cat, pat in rules:
+        if pat.search(text or ""):
+            return cat
+    return None
+
+
+def fashion_category(name: str, extra: str = "", layers=None) -> str | None:
+    """Where a clothes item sits in the fashion menu.
+
+    A drawn feet, hands, or back layer wins. Head and body layers do not:
+    the raw data files gloves, suits, and bags as head. The name (English,
+    then Chinese or Japanese) decides those, and rifles, guns, surfboards,
+    and bags stay on Back. The raw type is only used by the caller when this
+    returns None.
+    """
+    drawn = {str(layer) for layer in (layers or set()) if layer}
+    if drawn == {"feet"}:
+        return "shoes"
+    if drawn == {"hands"}:
+        return "gloves"
+    if drawn == {"back"}:
+        return "back"
+    cat = _fashion_match(name, _FASHION_EN) or _fashion_match(name, _FASHION_CJK)
+    if cat:
+        return cat
+    if extra:
+        cat = _fashion_match(extra, _FASHION_EN) or _fashion_match(extra, _FASHION_CJK)
+        if cat:
+            return cat
+    if drawn == {"body"}:
+        return "outfits"
+    if drawn == {"head"}:
+        return "hats"
+    return None
+
+
+def load_sprite_layers() -> dict[int, set[str]]:
+    """Item id -> paper-doll layers that item actually draws, when the catalog has it."""
+    path = ROOT / "docs" / "pd" / "client_pd_preview.json"
+    if not path.is_file():
+        return {}
+    catalog = json.loads(path.read_text(encoding="utf-8"))
+    found: dict[int, set[str]] = {}
+    for item in catalog.get("items") or []:
+        layers: set[str] = set()
+        for sex in (item.get("components") or {}).values():
+            if not isinstance(sex, dict):
+                continue
+            for pose in sex.values():
+                if isinstance(pose, dict):
+                    layers.update(layer for layer, key in pose.items() if key)
+        ids = [item.get("item_id"), *(item.get("itemIds") or [])]
+        for iid in ids:
+            if iid is None:
+                continue
+            found.setdefault(int(iid), set()).update(layers)
+    return found
+
+
+_SHAPE_IN_NAME = re.compile(r"shapeshift|\btransform", re.I)
+_SHAPE_IN_DESC = re.compile(r"shapeshift|transform into", re.I)
+_EARS_WORD = re.compile(r"\bears\b", re.I)
+_HAT_OTHER = re.compile(
+    r"\bhats?\b|\bhelms?\b|\bhelmets?\b|\bcirclets?\b|\btiaras?\b|\bcrowns?\b|\bhorns?\b"
+    r"|\bcaps?\b|\bberets?\b|\bhoods?\b|\bheadbands?\b|\bheaddress(?:es)?\b|\bbonnets?\b",
+    re.I,
+)
+_MATERIAL_WOOD = re.compile(r"\b(?:wood|logs?|planks?|branches?)\b", re.I)
+
+
+def _ears_only_hat(name: str) -> bool:
+    """True when the only hat keyword is the word ears (cat ears, bunny ears)."""
+    if not _EARS_WORD.search(name or ""):
+        return False
+    if _HAT_OTHER.search(name or ""):
+        return False
+    return _fashion_match(name, _FASHION_EN[:4]) is None
+
+
+def fashion_kind_for_page(name: str, desc: str = "", extra: str = "", layers=None) -> str:
+    """Menu kind for a fashion row after its name has been translated.
+
+    Shapeshift is decided from the item name, plus a description that says
+    the wearer transforms into something. A description that only says
+    "transformation PD" is still a clothing piece. An ears-only translation
+    loses to an earring name in the extra text.
+    """
+    if _SHAPE_IN_NAME.search(name or "") or _SHAPE_IN_DESC.search(desc or ""):
+        return "Shapeshift"
+    cat = fashion_category(name, extra, layers)
+    if cat == "hats" and _ears_only_hat(name):
+        extra_cat = _fashion_match(extra, _FASHION_EN) or _fashion_match(extra, _FASHION_CJK)
+        if extra_cat == "face":
+            cat = "face"
+    if not cat:
+        return "Fashion"
+    return FASHION_MENU_KIND[cat]
+
+
+def catalog_primary_names() -> dict[int, str]:
+    """Paper-doll record name keyed by that record's own item id."""
+    path = ROOT / "docs" / "pd" / "client_pd_preview.json"
+    if not path.is_file():
+        return {}
+    catalog = json.loads(path.read_text(encoding="utf-8"))
+    found: dict[int, str] = {}
+    for item in catalog.get("items") or []:
+        iid = item.get("item_id")
+        name = item.get("name") or ""
+        if iid is None or not name:
+            continue
+        found.setdefault(int(iid), name)
+    return found
+
+
+def apply_menu_kinds(items: list[dict]) -> list[dict]:
+    """Classify fashion from the translated name. Drops the loader's scratch fields.
+
+    Extra names use the translation cache only. A missing cache line stays in
+    the original script so the Chinese and Japanese keywords still match,
+    and this pass does not load the translation model.
+    """
+    cache_path = ROOT / "corpus" / "item_translations_en.json"
+    cache = json.loads(cache_path.read_text(encoding="utf-8")) if cache_path.is_file() else {}
+    layers = load_sprite_layers()
+    catalog = catalog_primary_names()
+
+    def show(text: str) -> str:
+        if not text:
+            return ""
+        key = text.replace("\r", " ").replace("\n", " ")
+        return cache.get(key, text)
+
+    for item in items:
+        base = item.pop("_base_kind", None)
+        raw_names = [n for n in (item.pop("_menu_extra", None) or []) if n]
+        name = item.get("name") or ""
+        cat_name = catalog.get(item["id"], "")
+        parts = []
+        for text in [*raw_names, *map(show, raw_names), cat_name, show(cat_name)]:
+            if text and text not in parts and text != name:
+                parts.append(text)
+        extra = " ".join(parts)
+        if base == "Fashion" or str(base or "").startswith("Fashion"):
+            # NAME_KIND may already have claimed a scroll or a key. Leave that.
+            if item.get("kind") not in FASHION_RECLASSIFY:
+                continue
+            kind = fashion_kind_for_page(name, item.get("desc") or "", extra, layers.get(item["id"]))
+        elif base in ("Headgear", "Body Armor"):
+            # Same override as refine_kind, using the translated name. A bag
+            # or mask filed as headgear is not a helmet. Extra aliases are
+            # not consulted here; a bad translation of another name must not
+            # move a helmet.
+            cat = fashion_category(name, "", layers.get(item["id"]))
+            if cat in {"face", "acc"} or (
+                cat == "back" and (base == "Headgear" or _BACK_GEAR.search(name))
+            ):
+                kind = FASHION_MENU_KIND[cat]
+            else:
+                continue
+        else:
+            continue
+        item["kind"] = kind
+        group = fashion_group(base, kind) or GROUP_OF.get(kind)
+        if group:
+            item["group"] = group
+    return items
+
+
+def fashion_group(base_kind: str, kind: str) -> str | None:
+    """Fashion menu kinds stay in Fashion. Armor gloves stay in Armor."""
+    if kind not in FASHION_MENU_KINDS:
+        return None
+    if kind == "Gloves" and base_kind not in ("Fashion",) and not str(base_kind).startswith("Fashion"):
+        return None
+    return "Fashion"
+
+
 NAME_KIND = [
     (r"advancement\s+stone", "Advancement Stone"),
     (r"skill\s+leveling\s+stone", "Skill Leveling Stone"),
@@ -164,7 +425,7 @@ NAME_KIND = [
 ]
 
 
-def refine_kind(name: str, kind: str, desc: str = "") -> str:
+def refine_kind(name: str, kind: str, desc: str = "", extra: str = "", layers=None) -> str:
     """Every group gets subtypes. Catch-alls (General, Fashion, Hidden, Gift) split by name."""
     n = f"{name} {desc}".lower()
     for pat, new_kind in NAME_KIND:
@@ -193,19 +454,23 @@ def refine_kind(name: str, kind: str, desc: str = "") -> str:
         if "box" in n or "chest" in n or "pack" in n:
             return "Gift"
         return "General" if kind == "Timed Item" else kind
-    if kind == "Fashion":
+    if kind == "Fashion" or str(kind).startswith("Fashion "):
         if any(w in n for w in ("shapeshift", "transform", "morph")):
             return "Shapeshift"
-        if any(w in n for w in ("wing", "halo")):
-            return "Fashion Wings"
-        if any(w in n for w in ("hat", "helm", "circlet", "tiara", "horn", "crown", "ear", "hair")):
-            return "Fashion Head"
-        if any(w in n for w in ("dress", "coat", "robe", "suit", "shirt", "armor", "cloth")):
-            return "Fashion Body"
-        if any(w in n for w in ("shoe", "boot", "sandal")):
-            return "Fashion Feet"
-        if any(w in n for w in ("glove", "sleeve", "gauntlet", "hand")):
-            return "Fashion Hands"
+        # Name before the raw Fashion Head label. Head and body sprites are
+        # not a slot: the client marks gloves and dresses as head too.
+        cat = fashion_category(name, extra, layers)
+        if cat:
+            return FASHION_MENU_KIND[cat]
+        return "Fashion"
+    if kind in ("Headgear", "Body Armor"):
+        cat = fashion_category(name, extra, layers)
+        # Wings in a plate or gown name are not a back slot. Bags, capes,
+        # mantles, rifles, guns and surfboards are.
+        if cat in {"face", "acc"} or (
+            cat == "back" and (kind == "Headgear" or _BACK_GEAR.search(name or ""))
+        ):
+            return FASHION_MENU_KIND[cat]
         return kind
     if kind in ("Hidden", "Gift"):
         if any(w in n for w in ("ore", "iron", "copper", "silver", "gold", "ingot")):
@@ -214,7 +479,7 @@ def refine_kind(name: str, kind: str, desc: str = "") -> str:
             return "Cloth"
         if any(w in n for w in ("herb", "flower", "leaf", "petal", "grass")):
             return "Herb"
-        if any(w in n for w in ("wood", "log", "plank", "branch")):
+        if _MATERIAL_WOOD.search(n):
             return "Wood"
         if any(w in n for w in ("fish", "shrimp", "crab")):
             return "Fish"
@@ -378,7 +643,9 @@ def load_items() -> list[dict]:
         raise SystemExit(f"missing {DB}")
     con = sqlite3.connect(DB)
     magic_ranks, magic_skills = load_magic_index(con)
+    layers_by_id = load_sprite_layers()
     merged: dict[int, dict] = {}
+    extra_names: dict[int, set[str]] = defaultdict(set)
     for table in TABLES:
         cols = {c[1] for c in con.execute(f"pragma table_info({table})")}
         want = ["id", "基本名稱", "物品類別", "原型名稱", "原型介面",
@@ -398,8 +665,14 @@ def load_items() -> list[dict]:
             prefix = clean(rec.get("原型名稱"))
             display = f"{prefix} {name}".strip() if prefix and prefix.lower() not in name.lower() else name
             desc = clean(rec.get("說明定義"))[:180]
-            kind = refine_kind(display, CAT_EN.get(zh, zh or "Unknown"), desc)
-            group = GROUP_OF.get(kind, "Other")
+            base_kind = CAT_EN.get(zh, zh or "Unknown")
+            extra_names[iid].add(name)
+            if prefix:
+                extra_names[iid].add(prefix)
+            # Kind is refined again for fashion after translation. The raw
+            # name has not been translated yet, so English keywords miss it.
+            kind = refine_kind(display, base_kind, desc, layers=layers_by_id.get(iid))
+            group = fashion_group(base_kind, kind) or GROUP_OF.get(kind, "Other")
             row = {
                 "id": iid,
                 "name": display,
@@ -451,7 +724,11 @@ def load_items() -> list[dict]:
                 row["desc"] = desc
             if quality:
                 row["quality"] = quality
+            row["_base_kind"] = base_kind
             merged[iid] = row
+    for row in merged.values():
+        bag = extra_names.get(row["id"]) or set()
+        row["_menu_extra"] = sorted(n for n in bag if n and n != row["name"])
     con.close()
     known: list[tuple[tuple, int]] = []
     pending: list[tuple[dict, str]] = []
@@ -478,199 +755,616 @@ HTML = r"""<!doctype html>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Angels Online Item Wiki</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
   <style>
-    :root { color-scheme: dark; --bg:#0d1117; --panel:#151b23; --text:#e8eef7;
-            --muted:#99a8bc; --line:#2b3848; --accent:#78b7ff; --good:#80d88a; --warn:#ffd166; }
-    * { box-sizing: border-box; }
-    body { margin:0; font-family: system-ui, Segoe UI, sans-serif; background:var(--bg); color:var(--text); }
-    header, main { max-width: 1480px; margin: 0 auto; padding: 22px; }
-    h1 { margin: 0 0 8px; }
-    .subtitle { color:var(--muted); max-width: 980px; line-height:1.5; }
-    .stats { display:flex; flex-wrap:wrap; gap:10px; margin-top:16px; }
-    .stat { border:1px solid var(--line); border-radius:999px; padding:8px 12px; color:var(--muted); }
-    .stat strong { color:var(--text); }
-    .controls { display:grid; grid-template-columns: minmax(220px,2fr) minmax(140px,1fr) minmax(160px,1fr) minmax(150px,.8fr) auto auto;
-                gap:12px; margin:16px 0; padding:14px; border:1px solid var(--line); background:var(--panel); border-radius:18px; align-items:end; }
-    .range { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
-    .tabs { display:flex; gap:8px; margin-top:16px; }
-    .tabs button { background:transparent; color:var(--text); }
-    .tabs button[aria-pressed="true"] { background:var(--accent); color:#082033; }
-    .linehead td { background:#101722; color:var(--accent); font-weight:750; letter-spacing:0; text-transform:none; cursor:default; }
-    body[data-tab="items"] .skills-only { display:none; }
-    body[data-tab="skills"] .items-only { display:none; }
-    body[data-tab="skills"] .controls { grid-template-columns: minmax(220px,2fr) minmax(180px,1fr) minmax(150px,.8fr) auto auto; }
-    .field { display:flex; flex-direction:column; gap:6px; color:var(--muted); font-size:.78rem; letter-spacing:.04em; text-transform:uppercase; }
-    .stat { cursor:pointer; }
-    .stat.on { border-color:var(--accent); color:var(--accent); }
-    input, select, button { width:100%; min-height:44px; border:1px solid var(--line); border-radius:12px;
-                            padding:11px 12px; background:#101722; color:var(--text); font:inherit; }
-    button { width:auto; cursor:pointer; background:var(--accent); color:#082033; font-weight:700; }
-    button.ghost { background:transparent; color:var(--text); }
-    .pager { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:10px 0; color:var(--muted); }
-    .pager .pages { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
-    .pager .pages button, .pager > button { min-height:36px; padding:6px 10px; }
-    .pager .pages button[aria-current="page"] { background:var(--accent); color:#082033; }
-    .pager .gap { min-width:1.2rem; text-align:center; }
-    .pager .goto { display:flex; align-items:center; gap:6px; color:var(--muted); font-size:.88rem; text-transform:none; letter-spacing:0; }
-    .pager .goto input { width:5.2rem; min-height:36px; padding:6px 8px; }
-    .pager button:disabled { opacity:.4; cursor:default; }
-    .tableWrap { overflow:auto; border:1px solid var(--line); border-radius:18px; background:var(--panel); }
-    table { width:100%; min-width:1100px; border-collapse:collapse; }
-    th, td { padding:10px 12px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
-    th { color:var(--muted); font-size:.78rem; letter-spacing:.04em; text-transform:uppercase; cursor:pointer; }
-    tbody tr:hover { background:rgba(120,183,255,.08); }
-    .item { display:grid; grid-template-columns:48px 1fr; gap:10px; align-items:center; }
-    .portrait { width:48px; height:48px; border-radius:12px; border:1px solid var(--line);
-                display:grid; place-items:center; font-weight:800; font-size:.8rem;
-                overflow:hidden; background:#101722; color:var(--accent); }
-    .portrait img { width:100%; height:100%; object-fit:contain; image-rendering:pixelated; }
-    .name { color:var(--accent); font-weight:750; }
-    .muted { color:var(--muted); font-size:.88rem; }
-    .badge { display:inline-flex; border:1px solid var(--line); border-radius:999px; padding:3px 8px; color:var(--muted); font-size:.78rem; margin:0 4px 4px 0; }
-    .badge.good { color:var(--good); }
-    .badge.warn { color:var(--warn); border-color:rgba(255,209,102,.45); }
-    .idbtn { font:inherit; min-height:0; padding:4px 8px; border-radius:8px; background:#101722; color:var(--accent); }
-    .empty { padding:28px; text-align:center; color:var(--muted); }
-    .stage { display:grid; grid-template-columns:1fr 400px; gap:16px; align-items:start; }
-    .tryon { position:sticky; top:16px; border:1px solid var(--line); border-radius:16px; padding:14px; background:#101722; }
-    .tryon h2 { margin:0 0 6px; font-size:1rem; }
-    .pd-stage { overflow:hidden; border:1px solid var(--line); border-radius:12px; background:#1a1d24; cursor:grab; }
-    .tryon canvas {
-      width:100%; height:420px; display:block; image-rendering:pixelated;
+    :root {
+      color-scheme: dark;
+      --bg: #100c1c;
+      --bg-deep: #0b0814;
+      --panel: #1b1530;
+      --panel-2: #241c3c;
+      --ink: #f6f1e6;
+      --muted: #d2c6e2;
+      --line: #4a3d68;
+      --gold: #e4c36a;
+      --gold-strong: #f3e2b0;
+      --gold-deep: #8a6420;
+      --gold-soft: rgba(228, 195, 106, 0.16);
+      --ink-on-gold: #2a1c08;
+      --good: #9ee0b0;
+      --warn: #f0d08a;
+      --accent: var(--gold);
+      --shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+      --radius: 16px;
+      --font-display: "Cinzel", Palatino, "Palatino Linotype", serif;
+      --font-body: "Source Sans 3", "Segoe UI", sans-serif;
+      --ease: 180ms ease;
     }
-    .pd-rotate { display:grid; grid-template-columns:48px 1fr 48px; gap:8px; align-items:center; margin-top:10px; }
-    .pd-rotate span { text-align:center; color:var(--accent); font-size:.84rem; font-weight:750; }
-    .pd-slots { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:12px; }
-    .slotBtn { min-height:52px; display:grid; grid-template-columns:36px 1fr; gap:6px; align-items:center; padding:6px; text-align:left; background:#0d121b; }
-    .slotBtn:disabled { opacity:.7; cursor:default; }
-    .slotBtn img, .slotPh { width:36px; height:36px; display:grid; place-items:center; border:1px solid var(--line); border-radius:8px; background:#101722; object-fit:contain; image-rendering:pixelated; }
-    .slotName { display:block; color:var(--muted); font-size:.68rem; font-weight:750; text-transform:uppercase; }
-    .slotItem { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.76rem; font-weight:700; }
-    .pd-controls { display:grid; gap:10px; margin-top:12px; padding-top:12px; border-top:1px solid var(--line); }
-    .seg { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
-    .seg.three { grid-template-columns:1fr 1fr 1fr; }
-    .seg button[aria-pressed="true"] { border-color:var(--accent); color:var(--accent); }
-    .swatches { max-height:88px; overflow:auto; display:grid; grid-template-columns:repeat(auto-fill,minmax(28px,1fr)); gap:4px; }
-    .swatch { min-height:28px; padding:0; border:2px solid var(--line); background:var(--swatch,#888); }
-    .swatch[aria-pressed="true"] { border-color:var(--accent); box-shadow:0 0 0 2px rgba(120,183,255,.35); }
-    .tryon .muted { margin-top:8px; }
-    .tryon .rowbtns { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
-    .tryon a { color:var(--accent); }
-    @media (max-width:1100px) { .stage { grid-template-columns:1fr 340px; } .tryon canvas { height:380px; } }
-    @media (max-width:900px) { .stage { grid-template-columns:1fr; } .tryon { position:static; } }
-    @media (max-width:800px) { .controls { grid-template-columns:1fr; } }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: var(--font-body);
+      font-size: 16px;
+      line-height: 1.45;
+      color: var(--ink);
+      background:
+        radial-gradient(1100px 480px at 8% -10%, rgba(92, 58, 150, 0.45), transparent 55%),
+        radial-gradient(800px 360px at 100% 0%, rgba(184, 137, 46, 0.16), transparent 50%),
+        var(--bg);
+    }
+    :focus-visible {
+      outline: 2px solid var(--gold-strong);
+      outline-offset: 2px;
+    }
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+    }
+    .topbar {
+      background: rgba(16, 12, 28, 0.94);
+      border-bottom: 1px solid var(--line);
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+    }
+    .topbar-inner, .shell {
+      width: min(1680px, calc(100% - 32px));
+      margin-inline: auto;
+    }
+    .topbar-inner {
+      display: grid;
+      grid-template-columns: minmax(180px, 1fr) minmax(260px, 540px) auto;
+      gap: 20px;
+      align-items: center;
+      padding: 16px 0;
+    }
+    .kicker {
+      margin: 0;
+      color: var(--gold);
+      font-family: var(--font-display);
+      font-size: 0.72rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+    h1 {
+      margin: 2px 0 0;
+      font-family: var(--font-display);
+      font-size: 1.7rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: var(--gold-strong);
+    }
+    .tagline { margin: 4px 0 0; color: var(--muted); font-size: 0.95rem; }
+    .searchbox { display: block; }
+    .searchbox input {
+      width: 100%;
+      min-height: 50px;
+      border-radius: 999px;
+      padding: 12px 18px;
+      font-size: 1.05rem;
+      background: var(--bg-deep);
+      box-shadow: inset 0 0 0 1px rgba(228, 195, 106, 0.35);
+    }
+    .tabs { display: flex; gap: 8px; }
+    .tabs button {
+      min-width: 92px;
+      background: transparent;
+      color: var(--ink);
+    }
+    .tabs button[aria-pressed="true"] {
+      background: linear-gradient(180deg, #f0d48a, #d7b15a);
+      color: var(--ink-on-gold);
+      border-color: #f0d48a;
+    }
+    .tabs a {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 92px;
+      min-height: 42px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: transparent;
+      color: var(--ink);
+      text-decoration: none;
+    }
+    .tabs a:hover { border-color: var(--gold); color: var(--gold-strong); }
+    .shell {
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr);
+      gap: 18px;
+      padding: 18px 0 32px;
+      align-items: start;
+    }
+    .filters, .tryon, .tableWrap {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .filters { padding: 14px; }
+    .filterToggle { display: none; width: 100%; }
+    .filterPanel { display: flex; flex-direction: column; gap: 12px; }
+    .filterPanel h2, .tryon h2 {
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: 1rem;
+      letter-spacing: 0.06em;
+      color: var(--gold-strong);
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .range { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .filterActions { display: grid; gap: 8px; }
+    body[data-tab="items"] .skills-only { display: none; }
+    body[data-tab="skills"] .items-only { display: none; }
+    input, select, button {
+      font: inherit;
+      color: var(--ink);
+      background: var(--bg-deep);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      min-height: 42px;
+      padding: 8px 12px;
+      transition: border-color var(--ease), background var(--ease), color var(--ease), box-shadow var(--ease);
+    }
+    input, select { width: 100%; }
+    input:hover, select:hover, button:hover { border-color: var(--gold); }
+    ::placeholder { color: #d8cce8; }
+    button { width: auto; cursor: pointer; border-radius: 999px; }
+    button.primary {
+      background: linear-gradient(180deg, #f0d48a, #d7b15a);
+      color: var(--ink-on-gold);
+      border-color: #f0d48a;
+      font-weight: 700;
+    }
+    button.ghost { background: transparent; color: var(--ink); }
+    button:disabled { opacity: 0.45; cursor: default; }
+    .howto {
+      border-top: 1px solid var(--line);
+      padding-top: 10px;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+    .howto summary {
+      cursor: pointer;
+      color: var(--gold-strong);
+      font-weight: 700;
+    }
+    .howto p { margin: 8px 0 0; }
+    .howto code {
+      font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+      font-size: 0.84em;
+      color: var(--gold-strong);
+    }
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 18px;
+      align-items: start;
+      min-width: 0;
+    }
+    .stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .stat {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 7px 12px;
+      color: var(--muted);
+      background: var(--panel);
+      cursor: pointer;
+      transition: border-color var(--ease), background var(--ease), color var(--ease);
+    }
+    .stat strong { color: var(--ink); font-weight: 700; }
+    .stat:hover { border-color: var(--gold); }
+    .stat.on {
+      background: var(--gold);
+      border-color: var(--gold);
+      color: var(--ink-on-gold);
+    }
+    .stat.on strong { color: var(--ink-on-gold); }
+    .listcol { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+    .pager {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      color: var(--muted);
+    }
+    .pager .pages { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .pager button {
+      min-height: 36px;
+      padding: 6px 12px;
+      background: var(--panel);
+    }
+    .pager .pages button[aria-current="page"] {
+      background: linear-gradient(180deg, #f0d48a, #d7b15a);
+      color: var(--ink-on-gold);
+      border-color: #f0d48a;
+      font-weight: 700;
+    }
+    .pager .gap { min-width: 1.2rem; text-align: center; color: var(--muted); }
+    .pager .goto {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 0.92rem;
+      text-transform: none;
+      letter-spacing: 0;
+      font-weight: 600;
+    }
+    .pager .goto input { width: 5.2rem; min-height: 36px; padding: 6px 8px; border-radius: 999px; text-align: center; }
+    #resultMeta { font-size: 0.92rem; }
+    .tableWrap { overflow: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+    th {
+      color: var(--muted);
+      font-size: 0.75rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      background: var(--panel-2);
+    }
+    th:hover { color: var(--gold-strong); }
+    tbody tr:nth-child(even) { background: rgba(228, 195, 106, 0.045); }
+    tbody tr { cursor: pointer; transition: background var(--ease); }
+    tbody tr:hover { background: var(--gold-soft); }
+    .linehead td {
+      background: #161028;
+      color: var(--gold);
+      font-family: var(--font-display);
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: none;
+      cursor: default;
+    }
+    .item { display: grid; grid-template-columns: 72px 1fr; gap: 10px; align-items: center; }
+    .portrait {
+      width: 72px; height: 72px; border-radius: 12px;
+      border: 1px solid var(--line);
+      display: grid; place-items: center;
+      font-weight: 800; font-size: 0.8rem;
+      overflow: hidden; background: var(--bg-deep); color: var(--gold-strong);
+    }
+    .portrait img { width: auto; height: auto; max-width: none; object-fit: none; image-rendering: pixelated; } /* integer size set by pxIcon() */
+    .name { color: var(--gold-strong); font-weight: 700; }
+    .muted { color: var(--muted); font-size: 0.88rem; }
+    .badge {
+      display: inline-flex;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 3px 8px;
+      color: var(--muted);
+      font-size: 0.78rem;
+      margin: 0 4px 4px 0;
+    }
+    .badge.good { color: var(--good); border-color: rgba(158, 224, 176, 0.45); }
+    .badge.warn { color: var(--warn); border-color: rgba(240, 208, 138, 0.5); }
+    .idbtn {
+      font: inherit;
+      min-height: 0;
+      padding: 4px 8px;
+      border-radius: 999px;
+      white-space: nowrap;
+      background: var(--bg-deep);
+      color: var(--gold-strong);
+    }
+    .empty { padding: 28px; text-align: center; color: var(--muted); cursor: default; }
+    .tryon {
+      position: sticky;
+      top: 16px;
+      max-height: calc(100vh - 32px);
+      overflow: auto;
+      padding: 14px;
+    }
+    .tryon .lede { margin: 6px 0 10px; }
+    .pd-frame {
+      padding: 8px;
+      border-radius: 20px;
+      background: linear-gradient(160deg, rgba(228, 195, 106, 0.7), rgba(228, 195, 106, 0.12) 42%, rgba(110, 72, 170, 0.45));
+    }
+    .pd-stage {
+      overflow: hidden;
+      border-radius: 14px;
+      background:
+        radial-gradient(ellipse at 50% 78%, rgba(228, 195, 106, 0.2), transparent 58%),
+        linear-gradient(180deg, #2c2348, #120e22);
+      cursor: grab;
+    }
+    .tryon canvas { width: 100%; height: 400px; display: block; image-rendering: pixelated; }
+    .pd-rotate { display: grid; grid-template-columns: 48px 1fr 48px; gap: 8px; align-items: center; margin-top: 10px; }
+    .pd-rotate button { width: 100%; padding: 0; }
+    .pd-rotate span { text-align: center; color: var(--gold-strong); font-size: 0.84rem; font-weight: 700; }
+    .pd-slots { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 12px; }
+    .slotBtn {
+      width: 100%;
+      min-height: 52px;
+      display: grid;
+      grid-template-columns: 36px 1fr;
+      gap: 6px;
+      align-items: center;
+      padding: 6px;
+      text-align: left;
+      border-radius: 12px;
+      background: var(--bg-deep);
+    }
+    .slotBtn:disabled { opacity: 0.7; cursor: default; }
+    .slotBtn img, .slotPh {
+      width: 36px; height: 36px;
+      display: grid; place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #161022;
+      object-fit: none; /* native 1x, centred: no 32->36 stretch */
+      image-rendering: pixelated;
+    }
+    .slotName { display: block; color: var(--muted); font-size: 0.68rem; font-weight: 700; text-transform: uppercase; }
+    .slotItem { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.76rem; font-weight: 700; }
+    .pd-controls { display: grid; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+    .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .seg.three { grid-template-columns: 1fr 1fr 1fr; }
+    .seg button { width: 100%; }
+    .seg button[aria-pressed="true"] {
+      background: var(--gold);
+      color: var(--ink-on-gold);
+      border-color: var(--gold);
+      font-weight: 700;
+    }
+    .swatches { max-height: 88px; overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(28px, 1fr)); gap: 4px; }
+    .swatch { min-height: 28px; min-width: 28px; padding: 0; border: 2px solid var(--line); border-radius: 8px; background: var(--swatch, #888); }
+    .swatch[aria-pressed="true"] { border-color: var(--gold-strong); box-shadow: 0 0 0 2px rgba(228, 195, 106, 0.45); }
+    .slotCell { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .handToggle { display: flex; gap: 4px; }
+    .handToggle button { flex: 1; min-height: 28px; padding: 2px 4px; font-size: 0.72rem; }
+    .handToggle button[aria-pressed="true"] { background: var(--gold); color: var(--ink-on-gold); }
+    .pd-check { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.88rem; text-transform: none; letter-spacing: 0; }
+    .pd-check input { width: auto; min-height: 0; }
+    #doll { image-rendering: pixelated; touch-action: none; }
+    #doll:focus { outline: 2px solid var(--gold-strong); outline-offset: 2px; }
+    .tryon .rowbtns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    .tryon a { color: var(--gold-strong); }
+    .tryon a:hover { color: #fff; }
+    @media (max-width: 1500px) {
+      .workspace { grid-template-columns: minmax(0, 1fr) 320px; }
+    }
+    @media (max-width: 1180px) {
+      .shell { grid-template-columns: 1fr; }
+      .filterToggle { display: inline-flex; justify-content: center; width: 100%; }
+      #filterPanel { display: none; }
+      body.filters-open #filterPanel { display: flex; }
+    }
+    @media (max-width: 900px) {
+      .topbar-inner { grid-template-columns: 1fr; gap: 12px; }
+      .tabs button, .tabs a { flex: 1; }
+      .workspace { grid-template-columns: 1fr; }
+      .tryon { position: static; max-height: none; }
+    }
+    @media (max-width: 720px) {
+      .topbar-inner, .shell { width: min(1680px, calc(100% - 20px)); }
+      h1 { font-size: 1.45rem; }
+      .stats { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
+      .stat { flex: 0 0 auto; }
+      .tableWrap { overflow: visible; background: transparent; border: 0; box-shadow: none; }
+      table { min-width: 0; }
+      thead, tbody { display: block; }
+      thead tr { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; }
+      thead th {
+        flex: 0 0 auto;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        border-bottom: 1px solid var(--line);
+      }
+      tbody tr {
+        display: block;
+        margin: 0 0 12px;
+        padding: 8px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: var(--panel);
+        box-shadow: var(--shadow);
+      }
+      tbody tr:nth-child(even) { background: var(--panel); }
+      tbody td {
+        display: grid;
+        grid-template-columns: 92px minmax(0, 1fr);
+        gap: 8px;
+        align-items: center;
+        justify-items: start;
+        border: 0;
+        padding: 4px 6px;
+      }
+      tbody td:first-child { display: block; }
+      tbody td:nth-child(2)::before { content: "ID"; }
+      tbody td:nth-child(3)::before { content: "Level"; }
+      tbody td:nth-child(4)::before { content: "Type"; }
+      tbody td:nth-child(5)::before { content: "Skill"; }
+      tbody td:nth-child(6)::before { content: "Group"; }
+      tbody td:nth-child(7)::before { content: "Price"; }
+      tbody td:nth-child(8)::before { content: "Quality"; }
+      tbody td:nth-child(9)::before { content: "Summon"; }
+      tbody td::before {
+        color: var(--muted);
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+      .linehead { padding: 0; box-shadow: none; }
+      .linehead td { display: block; }
+      .linehead td::before { content: none; }
+      td.empty { display: block; }
+      td.empty::before { content: none; }
+      .tryon canvas { height: 320px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition: none !important; }
+    }
   </style>
 </head>
 <body data-tab="items">
-  <header>
-    <h1>Item Wiki</h1>
-    <p class="subtitle">
-      Local catalog from your extracted client (update 26 / <code>content.db</code>),
-      grouped like the old Angels Online wikis. Search a name or paste an ID.
-      Use <strong>/item &lt;id&gt;</strong> on the Preservation server to summon it.
-      The level filter covers gear requirements and skill progression: a scroll
-      matches on its item level or, when they differ, the skill level it needs.
-      Roman numerals are the spell rank (I–V).
-      The Skills tab files every skill scroll under its skill, grouped by spell and rank.
-      Icons are the client <code>shape/item/*.SHP</code> sprites. Click a row
-      to try fashion, weapons, and mounts on a front-facing dummy.
-    </p>
-    <div class="tabs" id="tabs">
-      <button type="button" data-tab="items" aria-pressed="true">Items</button>
-      <button type="button" data-tab="skills">Skills</button>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <p class="kicker">Angels Online</p>
+        <h1>Item Wiki</h1>
+        <p class="tagline">Update 26 catalog. Search a name or an item ID.</p>
+      </div>
+      <label class="searchbox">
+        <span class="sr-only">Search</span>
+        <input id="search" type="search" placeholder="Name, ID, type…  potion, 19826, sabre" autocomplete="off">
+      </label>
+      <div class="tabs" id="tabs" role="tablist" aria-label="Catalog">
+        <button type="button" data-tab="items" aria-pressed="true">Items</button>
+        <button type="button" data-tab="skills">Skills</button>
+        <a href="fashion.html">Wardrobe</a>
+      </div>
     </div>
-    <div class="stats" id="stats"></div>
   </header>
-  <main>
-    <div class="controls">
-      <label class="field">Search
-        <input id="search" type="search" placeholder="Name, ID, type...  e.g. potion, 19826, sabre">
-      </label>
-      <label class="field items-only">Group
-        <select id="groupFilter"><option value="">All groups</option></select>
-      </label>
-      <label class="field items-only">Type in this group
-        <select id="kindFilter"><option value="">All types</option></select>
-      </label>
-      <label class="field skills-only">Skill
-        <select id="skillFilter"><option value="">All skills</option></select>
-      </label>
-      <label class="field">Level
-        <span class="range">
-          <input id="levelMin" type="number" min="0" placeholder="Min" inputmode="numeric" title="Minimum item or skill level">
-          <input id="levelMax" type="number" min="0" placeholder="Max" inputmode="numeric" title="Maximum item or skill level">
-        </span>
-      </label>
-      <button id="reset" type="button">Reset</button>
-      <button id="copy" class="ghost" type="button">Copy visible IDs</button>
-    </div>
-    <div class="pager" id="pager">
-      <button id="first" type="button">First</button>
-      <button id="prev" type="button">Prev</button>
-      <span id="pageLinks" class="pages"></span>
-      <button id="next" type="button">Next</button>
-      <button id="last" type="button">Last</button>
-      <span id="resultMeta"></span>
-      <label class="goto">Go to page
-        <input id="gotoPage" type="number" min="1" step="1" inputmode="numeric">
-      </label>
-    </div>
-    <div class="stage">
-    <div class="tableWrap">
-      <table>
-        <thead>
-          <tr>
-            <th data-k="name">Item</th>
-            <th data-k="id">ID</th>
-            <th data-k="level">Level</th>
-            <th data-k="kind">Type</th>
-            <th data-k="tree">Skill</th>
-            <th data-k="group">Group</th>
-            <th data-k="price">Price</th>
-            <th data-k="quality">Quality</th>
-            <th>Summon</th>
-          </tr>
-        </thead>
-        <tbody id="rows"></tbody>
-      </table>
-    </div>
-    <aside class="tryon">
-      <h2>Paper doll</h2>
-      <p class="muted" style="margin:0 0 8px">Same Wait.spr atlases, foot anchors, and hair/skin tint as angelsonline.wiki. Eternal wiki only ships the 36px bag icons already in the table.</p>
-      <div class="pd-stage">
-        <canvas id="doll" width="400" height="420"></canvas>
-      </div>
-      <div class="pd-rotate">
-        <button type="button" id="dollLeft" aria-label="Rotate left">◀</button>
-        <span id="dollDir">Front</span>
-        <button type="button" id="dollRight" aria-label="Rotate right">▶</button>
-      </div>
-      <div class="pd-slots" id="dollSlots"></div>
-      <div class="pd-controls">
-        <div class="seg" id="dollSex">
-          <button type="button" data-sex="female" aria-pressed="true">Female</button>
-          <button type="button" data-sex="male">Male</button>
-        </div>
-        <label class="field">Hairstyle
-          <select id="dollHair"></select>
+  <div class="shell">
+    <aside class="filters" aria-label="Filters">
+      <button id="filterToggle" class="filterToggle" type="button" aria-expanded="false" aria-controls="filterPanel">Show filters</button>
+      <div id="filterPanel" class="filterPanel">
+        <h2>Filters</h2>
+        <label class="field items-only">Group
+          <select id="groupFilter"><option value="">All groups</option></select>
         </label>
-        <div class="swatches" id="dollHairColors" title="Hair color"></div>
-        <div class="swatches" id="dollSkins" title="Skin tone"></div>
-        <div class="seg three" id="dollHeight">
-          <button type="button" data-h="short">Short</button>
-          <button type="button" data-h="average" aria-pressed="true">Average</button>
-          <button type="button" data-h="tall">Tall</button>
+        <label class="field items-only">Type in this group
+          <select id="kindFilter"><option value="">All types</option></select>
+        </label>
+        <label class="field skills-only">Skill
+          <select id="skillFilter"><option value="">All skills</option></select>
+        </label>
+        <label class="field">Level
+          <span class="range">
+            <input id="levelMin" type="number" min="0" placeholder="Min" inputmode="numeric" title="Minimum item or skill level">
+            <input id="levelMax" type="number" min="0" placeholder="Max" inputmode="numeric" title="Maximum item or skill level">
+          </span>
+        </label>
+        <div class="filterActions">
+          <button id="reset" class="primary" type="button">Reset</button>
+          <button id="copy" class="ghost" type="button">Copy visible IDs</button>
+        </div>
+        <details class="howto">
+          <summary>How this catalog works</summary>
+          <p>
+            Local catalog from your extracted client (update 26 / <code>content.db</code>),
+            grouped like the old Angels Online wikis. Search a name or paste an ID.
+            Use <strong>/item &lt;id&gt;</strong> on the Preservation server to summon it.
+            The level filter covers gear requirements and skill progression: a scroll
+            matches on its item level or, when they differ, the skill level it needs.
+            Roman numerals are the spell rank (I–V).
+            The Skills tab files every skill scroll under its skill, grouped by spell and rank.
+            Icons show the front-facing bag picture when one is available, and the client
+            <code>shape/item/*.SHP</code> sprite otherwise. Click a row to try fashion,
+            weapons, and mounts on the dummy.
+          </p>
+        </details>
+      </div>
+    </aside>
+    <div class="workspace">
+      <div class="listcol">
+        <div class="stats" id="stats"></div>
+        <div class="pager" id="pager">
+          <button id="first" type="button">First</button>
+          <button id="prev" type="button">Prev</button>
+          <span id="pageLinks" class="pages"></span>
+          <button id="next" type="button">Next</button>
+          <button id="last" type="button">Last</button>
+          <span id="resultMeta"></span>
+          <label class="goto">Go to page
+            <input id="gotoPage" type="number" min="1" step="1" inputmode="numeric">
+          </label>
+        </div>
+        <div class="tableWrap">
+          <table>
+            <thead>
+              <tr>
+                <th data-k="name">Item</th>
+                <th data-k="id">ID</th>
+                <th data-k="level">Level</th>
+                <th data-k="kind">Type</th>
+                <th data-k="tree">Skill</th>
+                <th data-k="group">Group</th>
+                <th data-k="price">Price</th>
+                <th data-k="quality">Quality</th>
+                <th>Summon</th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
         </div>
       </div>
-      <div class="muted" id="dollMeta">Loading paper-doll sprites…</div>
-      <div class="rowbtns">
-        <button type="button" id="dollReset">Reset dummy</button>
-        <button type="button" id="dollExample">Wiki example</button>
-      </div>
-      <div class="muted"><a id="dollWiki" href="https://angelsonline.wiki/pd-preview/" target="_blank" rel="noreferrer">Open this loadout on angelsonline.wiki</a></div>
-    </aside>
+      <aside class="tryon" aria-label="Paper doll">
+        <h2>Paper doll</h2>
+        <p class="muted lede">Click a fashion, weapon, or mount row to dress the dummy.</p>
+        <div class="pd-frame">
+          <div class="pd-stage">
+            <canvas id="doll" width="400" height="420" tabindex="0" role="img" aria-label="Paper doll preview"></canvas>
+          </div>
+        </div>
+        <div class="pd-rotate">
+          <button type="button" id="dollLeft" aria-label="Rotate left">◀</button>
+          <span id="dollDir">Front</span>
+          <button type="button" id="dollRight" aria-label="Rotate right">▶</button>
+        </div>
+        <div class="pd-slots" id="dollSlots"></div>
+        <div class="pd-controls">
+          <div class="seg" id="dollSex">
+            <button type="button" data-sex="female" aria-pressed="true">Female</button>
+            <button type="button" data-sex="male">Male</button>
+          </div>
+          <label class="field">Hairstyle
+            <select id="dollHair"></select>
+          </label>
+          <div class="swatches" id="dollHairColors" title="Hair color"></div>
+          <div class="swatches" id="dollSkins" title="Skin tone"></div>
+          <div class="seg three" id="dollHeight">
+            <button type="button" data-h="short">Short</button>
+            <button type="button" data-h="average" aria-pressed="true">Average</button>
+            <button type="button" data-h="tall">Tall</button>
+          </div>
+          <label class="field">Background
+            <select id="dollBg">
+              <option value="studio" selected>Studio</option>
+              <option value="plain">Plain</option>
+              <option value="dusk">Dusk court</option>
+              <option value="grove">Grove</option>
+              <option value="harbor">Night harbor</option>
+            </select>
+          </label>
+          <label class="pd-check"><input id="dollCrisp" type="checkbox" checked> Crisp (integer scale)</label>
+          <label class="field">Local background
+            <input id="dollBgFile" type="file" accept="image/png,image/jpeg,image/webp">
+          </label>
+        </div>
+        <div class="muted" id="dollMeta">Loading paper-doll sprites…</div>
+        <div class="rowbtns">
+          <button type="button" id="dollReset">Reset dummy</button>
+          <button type="button" id="dollExample">Wiki example</button>
+          <button type="button" id="dollClear">Clear all</button>
+          <button type="button" id="dollCopy" class="ghost">Copy link</button>
+          <button type="button" id="dollSave" class="ghost">Save PNG</button>
+        </div>
+        <div class="muted"><a id="dollWiki" href="https://angelsonline.wiki/pd-preview/" target="_blank" rel="noreferrer">Open on angelsonline.wiki</a></div>
+      </aside>
     </div>
-  </main>
+  </div>
   <script>
     const FILES = __FILES__;
     const DATA = __DATA__;
@@ -791,7 +1485,7 @@ HTML = r"""<!doctype html>
       if (i.icon) urls.push(`icons/${i.icon}.png`);
       if (file) urls.push(`icons/${file}.png`);
       if (!urls.length) return initials;
-      return `<img src="${urls[0]}" alt="" data-fb="${initials}" data-next="${urls.slice(1).join("|")}" onerror="iconFail(this)">`;
+      return `<img src="${urls[0]}" alt="" data-fb="${initials}" data-next="${urls.slice(1).join("|")}" onload="pxIcon(this)" onerror="iconFail(this)">`;
     }
     function iconFail(img) {
       const next = (img.dataset.next || "").split("|").filter(Boolean);
@@ -803,6 +1497,14 @@ HTML = r"""<!doctype html>
       img.replaceWith(Object.assign(document.createElement("span"), {textContent: img.dataset.fb || "?"}));
     }
     window.iconFail = iconFail;
+    // Integer-only icon scale inside the fixed 72px slot (36px -> 2x, 24px -> 3x, >72 -> 1x).
+    function pxIcon(img) {
+      const n = Math.max(img.naturalWidth, img.naturalHeight) || 72;
+      const k = Math.max(1, Math.floor(72 / n));
+      img.style.width = img.naturalWidth * k + "px";
+      img.style.height = img.naturalHeight * k + "px";
+    }
+    window.pxIcon = pxIcon;
     function copyId(id) {
       const text = "item " + id;
       navigator.clipboard.writeText(text).catch(() => {});
@@ -960,10 +1662,53 @@ HTML = r"""<!doctype html>
     else { paintStats(); render(); }
   </script>
   <script src="pd/catalog.js"></script>
+  <script src="pd/tint-masks.js"></script>
   <script src="pd/preview.js"></script>
+  <script>
+    (function () {
+      var btn = document.getElementById("filterToggle");
+      if (!btn) return;
+      btn.addEventListener("click", function () {
+        var open = document.body.classList.toggle("filters-open");
+        btn.setAttribute("aria-expanded", open ? "true" : "false");
+        btn.textContent = open ? "Hide filters" : "Show filters";
+      });
+    })();
+  </script>
 </body>
 </html>
 """
+
+
+def assemble_page(items: list[dict], files: dict) -> str:
+    """Fill the item-page template. Integer icon scaling is part of that template."""
+    return (
+        HTML.replace("__FILES__", json.dumps({str(k): v for k, v in files.items()}, separators=(",", ":")))
+        .replace("__GROUPS__", json.dumps(GROUP_ORDER, separators=(",", ":")))
+        .replace("__SKILLS__", json.dumps(SKILL_FAMILIES, separators=(",", ":")))
+        .replace("__DATA__", json.dumps(items, ensure_ascii=False, separators=(",", ":")))
+    )
+
+
+def icon_scaler_gaps(html: str) -> list[str]:
+    """Names of integer-scaler markers missing from a generated item page."""
+    compact = re.sub(r"\s+", "", html)
+    required = {
+        "function pxIcon": "functionpxIcon(",
+        "onload pxIcon": 'onload="pxIcon(this)"',
+        "window.pxIcon": "window.pxIcon=pxIcon",
+        "72px slot": "grid-template-columns:72px1fr",
+        "72px portrait": "width:72px;height:72px",
+        "integer size comment": "integersizesetbypxIcon()",
+        "scale formula": "Math.floor(72/n)",
+    }
+    return [name for name, marker in required.items() if marker not in compact]
+
+
+def require_icon_scaler(html: str, label: str) -> None:
+    gaps = icon_scaler_gaps(html)
+    if gaps:
+        raise SystemExit(f"{label} is missing the integer icon scaler: {', '.join(gaps)}")
 
 
 def main() -> None:
@@ -976,6 +1721,7 @@ def main() -> None:
     args = parser.parse_args()
     print("loading items...")
     items = translate_item_fields(load_items())
+    apply_menu_kinds(items)
     print(f"  {len(items)} unique items")
     print("loading icon map...")
     files = load_icon_files()
@@ -1003,16 +1749,14 @@ def main() -> None:
     for (g, k), n in sorted(kinds.items()):
         if g == "Consumables":
             print(f"    {k:<24} {n}")
-    html = (
-        HTML.replace("__FILES__", json.dumps({str(k): v for k, v in files.items()}, separators=(",", ":")))
-            .replace("__GROUPS__", json.dumps(GROUP_ORDER, separators=(",", ":")))
-            .replace("__SKILLS__", json.dumps(SKILL_FAMILIES, separators=(",", ":")))
-            .replace("__DATA__", json.dumps(items, ensure_ascii=False, separators=(",", ":")))
-    )
+    html = assemble_page(items, files)
+    require_icon_scaler(html, "item page")
     OUT.parent.mkdir(parents=True, exist_ok=True)
     SHARE.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(html, encoding="utf-8")
     SHARE.write_text(html, encoding="utf-8")
+    for path in (OUT, SHARE):
+        require_icon_scaler(path.read_text(encoding="utf-8"), str(path))
     print(f"wrote {OUT} ({OUT.stat().st_size} bytes)")
     print(f"wrote {SHARE}")
 

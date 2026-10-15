@@ -5,6 +5,8 @@ does not fetch pictures from a website.
 """
 from __future__ import annotations
 
+import csv
+import hashlib
 import json
 import re
 import struct
@@ -14,7 +16,17 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 from build_item_wiki import EXTRACT, load_icon_files
-from shp_icon import PAK_ORDER, collect_item_shps, decode_shp_bytes, palette_span, rgb565
+from shp_icon import (
+    INDEX8,
+    RGB565,
+    PAK_ORDER,
+    collect_item_shps,
+    decode_shp_bytes,
+    header_fields,
+    icon_format,
+    palette_span,
+    rgb565,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 PAGE = ROOT / "docs" / "items.html"
@@ -34,27 +46,36 @@ def rgb555(c: int) -> tuple[int, int, int]:
 
 
 def make_tlhs(width: int, height: int, runs: list[list[tuple[int, int, int]]],
-              pixels: bytes, colours: list[int], pal_size: int, pad: bytes = b"") -> bytes:
-    """Build one TLHS icon. Each run is (x, width, extra bytes after its pixels)."""
+              pixels: bytes, colours: list[int], pal_size: int, pad: bytes = b"",
+              depth: int = 0, bpp: int = 1, direct16: bool = False) -> bytes:
+    """Build one TLHS icon. Each run is (x, pixel count, extra bytes after its pixels).
+
+    Span records are stored count-then-x. ``direct16`` writes palette size 512
+    and palette offset 0, which is the no-palette RGB565 layout. ``depth`` is
+    the flag field and does not select the format.
+    """
     span_len = sum(8 * len(row) for row in runs)
-    pal_off = 80 + height * 4 + span_len
-    pal_bytes = b"".join(struct.pack("<H", word) for word in colours)
-    px_off = pal_off + len(pal_bytes) + len(pad)
+    pal_at = 80 + height * 4 + span_len
+    pal_bytes = b"" if direct16 else b"".join(struct.pack("<H", word) for word in colours)
+    px_off = pal_at + len(pal_bytes) + len(pad)
     spans = bytearray()
     row_off = []
     cursor = 0
     for row in runs:
         row_off.append(80 + height * 4 + len(spans))
         for x, run_width, extra in row:
-            spans += struct.pack("<hhI", x, run_width, px_off + cursor)
-            cursor += run_width + extra
+            spans += struct.pack("<hhI", run_width, x, px_off + cursor)
+            cursor += run_width * bpp + extra
     if len(pixels) < cursor:
         pixels += bytes(cursor - len(pixels))
     header = bytearray(80)
     header[0:4] = b"TLHS"
-    struct.pack_into("<IIIII", header, 8, 1, pal_size, 0, width, height)
+    struct.pack_into(
+        "<IIIII", header, 8, 1,
+        512 if direct16 else pal_size, depth, width, height,
+    )
     struct.pack_into("<I", header, 44, px_off)
-    struct.pack_into("<I", header, 64, pal_off)
+    struct.pack_into("<I", header, 64, 0 if direct16 else pal_at)
     offsets = b"".join(struct.pack("<I", off) for off in row_off)
     return bytes(header) + offsets + bytes(spans) + pal_bytes + pad + pixels
 
@@ -131,7 +152,182 @@ def check_decoder_rules() -> None:
         raise SystemExit("RGB565 expansion is wrong")
     if rgb555(GREEN) == (0, 255, 0):
         raise SystemExit("the green test word is not distinct from RGB555")
-    print("decoder rules ok: run width, edge clip, palette end, RGB565")
+
+    # No palette (size 512, offset 0): each pixel is one RGB565 word.
+    # 0x0000 is black, not a hole. The flag is ignored (2016 or 10466).
+    direct = make_tlhs(
+        4, 1,
+        [[(0, 4, 0)]],
+        struct.pack("<HHHH", 0x0000, RED, BLUE, 0xFFFF),
+        [],
+        pal_size=0,
+        depth=2016,
+        bpp=2,
+        direct16=True,
+    )
+    img = decode_shp_bytes(direct, front=False)
+    assert img is not None
+    assert_pixels(img, {
+        (0, 0): (0, 0, 0, 255),
+        (1, 0): (255, 0, 0, 255),
+        (2, 0): (0, 0, 255, 255),
+        (3, 0): (255, 255, 255, 255),
+    }, "rgb565 direct")
+
+    flagged = make_tlhs(
+        1, 1,
+        [[(0, 1, 0)]],
+        struct.pack("<H", GREEN),
+        [],
+        pal_size=0,
+        depth=10466,
+        bpp=2,
+        direct16=True,
+    )
+    img = decode_shp_bytes(flagged, front=False)
+    assert img is not None and img.getpixel((0, 0)) == (0, 255, 0, 255), "flag 10466 is still rgb565"
+
+    clipped16 = make_tlhs(
+        3, 1,
+        [[(-1, 2, 0)]],
+        struct.pack("<HH", GREEN, RED),
+        [],
+        pal_size=0,
+        depth=2016,
+        bpp=2,
+        direct16=True,
+    )
+    img = decode_shp_bytes(clipped16, front=False)
+    assert img is not None
+    assert_pixels(img, {
+        (0, 0): (255, 0, 0, 255),
+        (1, 0): (0, 0, 0, 0),
+    }, "rgb565 left edge")
+
+    # A real palette stays indexed even when the flag is the RGB565 green mask.
+    kept = make_tlhs(
+        1, 1,
+        [[(0, 1, 0)]],
+        bytes([1]),
+        [0x0000, RED],
+        pal_size=768,
+        depth=2016,
+    )
+    img = decode_shp_bytes(kept, front=False)
+    assert img is not None and img.getpixel((0, 0)) == (255, 0, 0, 255), "palette file stays indexed"
+    print("decoder rules ok: count-then-x spans, edge clip, palette end, RGB565")
+    check_sample_icons()
+
+
+# RGBA sha256 prefixes from the sample set (front cell is the whole image).
+# 16 files are no-palette RGB565; 25 are 8-bit controls with the count-then-x span order.
+SAMPLE_HASHES = {
+    "i0343.SHP": "5bd0b884f7677c06",
+    "i0070.SHP": "f0ed6fc352521218",
+    "i0050.SHP": "0cd5493313a55484",
+    "i0341.SHP": "c1099da33f20b6c3",
+    "I1547.SHP": "5e9a46594c63ea02",
+    "I2378.SHP": "31c34ee279d0c380",
+    "i0160.SHP": "805521980c2e4c90",
+    "i0199.SHP": "b4c8c9810be2cafd",
+    "i0202.SHP": "f9a78739c61e35ea",
+    "i0205.SHP": "c52a7c05706e304b",
+    "i0144.SHP": "c1e44a9d5fa0d6a4",
+    "i0148.SHP": "31e922c16f414afb",
+    "i0152.SHP": "934404fc562604f7",
+    "I4967.SHP": "2adc60c2927ea04f",
+    "I1545.SHP": "f3745167d6ea8fd8",
+    "I3873.SHP": "c40f6568ee468f24",
+    "i0021.SHP": "32a5f5c0cadc559e",
+    "I1457.SHP": "71d1dabcaf3fa5ea",
+    "I1453.SHP": "c844ab51fe43d8fa",
+    "I1496.SHP": "70a56206ced0b5a0",
+    "I3726.SHP": "c5b62c6e17d06ac7",
+    "I1232.SHP": "60b47b2fd56a53aa",
+    "I1734.SHP": "e7ce929a46b787a2",
+    "I0478.SHP": "5dec28fa6e456130",
+    "I1756.SHP": "f9d60fb78489df28",
+    "i4901.SHP": "87228c1906514dfb",
+    "I1222.SHP": "ff530d9faf6c1316",
+    "I1248.SHP": "80f2021e0b19e69e",
+    "I1246.SHP": "2f41abe10bc047de",
+    "I1467.SHP": "61620b793d45aa77",
+    "I1239.SHP": "2e6ed8ee5a546d5d",
+    "I1241.SHP": "c482824509ce13bb",
+    "I1214.SHP": "12ab99b6fe901655",
+    "I1425.SHP": "7384d3a8f9242aaa",
+    "I0996.SHP": "03fa3fc6cbc88ad6",
+    "I1735.SHP": "fd549fb3c5fe817a",
+    "I1235.SHP": "d72ea384caa7bd3c",
+    "I1234.SHP": "4aa9fd78bae1cf2f",
+    "I4800.SHP": "ffee2ec7081109e3",
+    "I2393.SHP": "42837c31a5e98641",
+    "i2523.SHP": "59def31a6328e75e",
+}
+SAMPLE_DIR = Path(__file__).resolve().parent / "fixtures" / "tlhs-icons"
+
+
+def _span_pixel_count(data: bytes, height: int, limit: int) -> int:
+    """Sum span counts using the on-disk order, independent of the decoder."""
+    offs = [struct.unpack_from("<I", data, 80 + i * 4)[0] for i in range(height)]
+    total = 0
+    for y, start in enumerate(offs):
+        end = offs[y + 1] if y + 1 < height else limit
+        p = start
+        while p + 8 <= end and p + 8 <= len(data):
+            count, x = struct.unpack_from("<hh", data, p)
+            p += 8
+            if count == 0 and x == -1:
+                break
+            if count > 0:
+                total += count
+    return total
+
+
+def check_sample_icons() -> None:
+    """The 16 no-palette sheets and 25 8-bit controls shipped with the format notes."""
+    manifest = SAMPLE_DIR / "manifest.csv"
+    if not manifest.is_file():
+        raise SystemExit(f"missing icon samples: {manifest}")
+    rows = list(csv.DictReader(manifest.open(encoding="utf-8")))
+    if len(rows) != 41:
+        raise SystemExit(f"expected 41 sample icons, found {len(rows)}")
+    rgb565_n = index_n = 0
+    for row in rows:
+        path = SAMPLE_DIR / row["filename"]
+        data = path.read_bytes()
+        fields = header_fields(data)
+        if fields is None:
+            raise SystemExit(f"{path.name}: not TLHS")
+        kind = icon_format(fields)
+        bpp = 2 if kind == RGB565 else 1
+        if kind == RGB565:
+            rgb565_n += 1
+            if int(fields["pal_size"]) != 512 or int(fields["pal_off"]) != 0:
+                raise SystemExit(f"{path.name}: rgb565 must be palette size 512 at offset 0")
+        else:
+            index_n += 1
+            if kind != INDEX8:
+                raise SystemExit(f"{path.name}: expected an 8-bit icon")
+        covered = _span_pixel_count(data, int(fields["height"]), int(fields["px_off"]))
+        pixel_bytes = len(data) - int(fields["px_off"])
+        if covered * bpp != pixel_bytes:
+            raise SystemExit(
+                f"{path.name}: spans cover {covered} pixels * {bpp} "
+                f"but the pixel block is {pixel_bytes} bytes"
+            )
+        img = decode_shp_bytes(data, front=False)
+        if img is None:
+            raise SystemExit(f"{path.name}: decode failed")
+        digest = hashlib.sha256(img.tobytes()).hexdigest()[:16]
+        expect = SAMPLE_HASHES.get(path.name)
+        if digest != expect:
+            raise SystemExit(f"{path.name}: image hash {digest}, expected {expect}")
+        if img.getchannel("A").getextrema()[1] == 0:
+            raise SystemExit(f"{path.name}: decoded blank")
+    if rgb565_n != 16 or index_n != 25:
+        raise SystemExit(f"expected 16 rgb565 and 25 palette icons, got {rgb565_n} and {index_n}")
+    print(f"sample icons ok: {rgb565_n} rgb565, {index_n} palette")
 
 
 def load_page() -> tuple[dict[str, str], list[dict]]:
