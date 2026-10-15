@@ -45,11 +45,11 @@
     th, td { padding:10px 12px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
     th { color:var(--muted); font-size:.78rem; letter-spacing:.04em; text-transform:uppercase; cursor:pointer; }
     tbody tr:hover { background:rgba(120,183,255,.08); }
-    .item { display:grid; grid-template-columns:48px 1fr; gap:10px; align-items:center; }
-    .portrait { width:48px; height:48px; border-radius:12px; border:1px solid var(--line);
+    .item { display:grid; grid-template-columns:72px 1fr; gap:10px; align-items:center; }
+    .portrait { width:72px; height:72px; border-radius:12px; border:1px solid var(--line);
                 display:grid; place-items:center; font-weight:800; font-size:.8rem;
                 overflow:hidden; background:#101722; color:var(--accent); }
-    .portrait img { width:100%; height:100%; object-fit:contain; image-rendering:pixelated; }
+    .portrait img { width:auto; height:auto; max-width:none; object-fit:none; image-rendering:pixelated; } /* integer size set by pxIcon() */
     .name { color:var(--accent); font-weight:750; }
     .muted { color:var(--muted); font-size:.88rem; }
     .badge { display:inline-flex; border:1px solid var(--line); border-radius:999px; padding:3px 8px; color:var(--muted); font-size:.78rem; margin:0 4px 4px 0; }
@@ -69,7 +69,7 @@
     .pd-slots { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:12px; }
     .slotBtn { min-height:52px; display:grid; grid-template-columns:36px 1fr; gap:6px; align-items:center; padding:6px; text-align:left; background:#0d121b; }
     .slotBtn:disabled { opacity:.7; cursor:default; }
-    .slotBtn img, .slotPh { width:36px; height:36px; display:grid; place-items:center; border:1px solid var(--line); border-radius:8px; background:#101722; object-fit:contain; image-rendering:pixelated; }
+    .slotBtn img, .slotPh { width:36px; height:36px; display:grid; place-items:center; border:1px solid var(--line); border-radius:8px; background:#101722; object-fit:none; image-rendering:pixelated; } /* native 1x, centred: no 32->36 stretch */
     .slotName { display:block; color:var(--muted); font-size:.68rem; font-weight:750; text-transform:uppercase; }
     .slotItem { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.76rem; font-weight:700; }
     .pd-controls { display:grid; gap:10px; margin-top:12px; padding-top:12px; border-top:1px solid var(--line); }
@@ -204,7 +204,7 @@
             <option value="harbor">Night harbor</option>
           </select>
         </label>
-        <label class="pd-check"><input id="dollCrisp" type="checkbox"> Crisp (integer scale)</label>
+        <label class="pd-check"><input id="dollCrisp" type="checkbox" checked> Crisp (integer scale)</label>
         <label class="field">Local background
           <input id="dollBgFile" type="file" accept="image/png,image/jpeg,image/webp">
         </label>
@@ -341,7 +341,7 @@
       if (i.icon) urls.push(`icons/${i.icon}.png`);
       if (file) urls.push(`icons/${file}.png`);
       if (!urls.length) return initials;
-      return `<img src="${urls[0]}" alt="" data-fb="${initials}" data-next="${urls.slice(1).join("|")}" onerror="iconFail(this)">`;
+      return `<img src="${urls[0]}" alt="" data-fb="${initials}" data-next="${urls.slice(1).join("|")}" onload="pxIcon(this)" onerror="iconFail(this)">`;
     }
     function iconFail(img) {
       const next = (img.dataset.next || "").split("|").filter(Boolean);
@@ -353,6 +353,14 @@
       img.replaceWith(Object.assign(document.createElement("span"), {textContent: img.dataset.fb || "?"}));
     }
     window.iconFail = iconFail;
+    // Integer-only icon scale inside the fixed 72px slot (36px -> 2x, 24px -> 3x, >72 -> 1x).
+    function pxIcon(img) {
+      const n = Math.max(img.naturalWidth, img.naturalHeight) || 72;
+      const k = Math.max(1, Math.floor(72 / n));
+      img.style.width = img.naturalWidth * k + "px";
+      img.style.height = img.naturalHeight * k + "px";
+    }
+    window.pxIcon = pxIcon;
     function copyId(id) {
       const text = "item " + id;
       navigator.clipboard.writeText(text).catch(() => {});
