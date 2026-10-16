@@ -191,7 +191,7 @@
 
   function itemHasSprite(rec, place) {
     if (!rec) return false;
-    const pose = shapeshiftWorn() ? "standing" : (wornId("ride") ? "mounted" : "standing");
+    const pose = wornId("ride") ? "mounted" : "standing";
     const sexComps = (rec.components || {})[snap.sex] || {};
     const comps = sexComps[pose] || {};
     const standing = sexComps.standing || {};
@@ -273,7 +273,17 @@
         });
       }
       (place.layers || []).forEach(layer => {
-        const key = spriteFor(sexComps, pose, layer, fallback);
+        const standingKey = (sexComps.standing || {})[layer];
+        const mountedKey = (sexComps.mounted || {})[layer];
+        let key = standingKey || "";
+        if (pose === "mounted") {
+          // A copied standing sheet is not a riding pose. Lift that one onto the saddle.
+          if (mountedKey && mountedKey !== standingKey) key = mountedKey;
+          else if (standingKey) {
+            key = standingKey;
+            fallback.push(layer);
+          }
+        }
         if (key) map[layer] = key;
       });
       return {
