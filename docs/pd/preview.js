@@ -660,6 +660,20 @@
         order.splice(handsAt < 0 ? order.length : handsAt + 1, 0, ...missing);
       }
     }
+    // A weapon behind the body reads as slung on the back. Hold main and off
+    // with the hands, in front of the body, for every facing.
+    const bodyAt = Math.max(order.indexOf("body"), order.indexOf("nude"));
+    if (bodyAt >= 0) {
+      const weapons = [];
+      for (let i = bodyAt - 1; i >= 0; i--) {
+        if (order[i] === "main" || order[i] === "off") weapons.unshift(order.splice(i, 1)[0]);
+      }
+      if (weapons.length) {
+        const handsAt = order.indexOf("hands");
+        const at = handsAt >= 0 ? handsAt : order.indexOf("body");
+        order.splice(at + 1, 0, ...weapons);
+      }
+    }
     const visible = order.filter(layer => preview.map[layer]);
     const imgs = [];
     for (const layer of visible) imgs.push(await tintedImage(preview.map[layer]));
@@ -713,13 +727,26 @@
       if (!frame) return;
       const riderLayer = preview.pose === "mounted" && layer !== "ride";
       const raised = riderLayer && preview.fallback && preview.fallback.indexOf(layer) >= 0 ? fallbackLift : 0;
+      // Wait sheets for some weapons sit on the shoulder. Drop those so the
+      // lower end meets the hand. Weapons already at the hand stay put.
+      let handDrop = 0;
+      if (layer === "main" || layer === "off") {
+        const bases = (PD.customization.sexes[snap.sex] || {}).baseSprites || {};
+        const bodyAsset = PD.sprites[bases[preview.pose] || bases.standing];
+        const bodyFrame = bodyAsset && (bodyAsset.frames[frameIndex] || bodyAsset.frames[dir.source]);
+        if (bodyFrame) {
+          const handY = -bodyFrame.anchorY + bodyFrame.height * 0.76;
+          const bottom = -frame.anchorY - raised + frame.height;
+          if (bottom < handY) handDrop = handY - bottom;
+        }
+      }
       ctx.save();
       ctx.translate(originX, originY);
       ctx.scale(scale * (dir.mirror ? -1 : 1), scale);
       if (riderLayer || preview.pose === "standing") ctx.scale(1, heightSetting.scale);
       ctx.drawImage(
         img, frame.x, frame.y, frame.width, frame.height,
-        -frame.anchorX, -frame.anchorY - raised - (riderLayer ? preview.riderOffsetY : 0),
+        -frame.anchorX, -frame.anchorY - raised + handDrop - (riderLayer ? preview.riderOffsetY : 0),
         frame.width, frame.height
       );
       ctx.restore();
