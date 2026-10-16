@@ -32,6 +32,7 @@
   };
   let renderToken = 0;
   let lastTick = 0;
+  let weaponUnpainted = false;
   let customImg = null;
   let customUrl = "";
   let applyingHash = false;
@@ -189,13 +190,27 @@
     return [mark[1].toLowerCase() === "f" ? "female" : "male"];
   }
 
+  function otherSexName(sex) {
+    return sex === "female" ? "male" : "female";
+  }
+
+  function componentKey(rec, sex, pose, layer) {
+    const sexComps = (rec.components || {})[sex] || {};
+    const posed = (sexComps[pose] || {})[layer];
+    if (posed) return posed;
+    if (pose === "mounted" && (sexComps.standing || {})[layer]) return sexComps.standing[layer];
+    return "";
+  }
+
   function itemHasSprite(rec, place) {
     if (!rec) return false;
     const pose = wornId("ride") ? "mounted" : "standing";
-    const sexComps = (rec.components || {})[snap.sex] || {};
-    const comps = sexComps[pose] || {};
-    const standing = sexComps.standing || {};
-    return (place.layers || []).some(layer => comps[layer] || (pose === "mounted" && standing[layer]));
+    return (place.layers || []).some(layer => {
+      if (componentKey(rec, snap.sex, pose, layer)) return true;
+      // A weapon missing on this sex can borrow the other sex's sheet.
+      if (layer !== "main" && layer !== "off") return false;
+      return !!componentKey(rec, otherSexName(snap.sex), pose, layer);
+    });
   }
 
   function equipPlace(id, rec, place) {
@@ -298,6 +313,7 @@
     const hair = sex.hairstyles[snap.hair] || sex.hairstyles[0];
     const map = { nude: sex.baseSprites[pose], hair: hair.sprites[pose] };
     const fallback = [];
+    const weapon = {};
     let fullHead = false;
     const seen = new Set();
     SLOT_ORDER.forEach(slot => {
@@ -309,14 +325,24 @@
       const place = placementFor(rec, wornPlace(slot));
       const sexComps = (rec.components || {})[snap.sex] || {};
       (place.layers || []).forEach(layer => {
-        const key = spriteFor(sexComps, pose, layer, fallback);
-        if (key) map[layer] = key;
+        let key = spriteFor(sexComps, pose, layer, fallback);
+        let flip = false;
+        if (!key && (layer === "main" || layer === "off")) {
+          const other = (rec.components || {})[otherSexName(snap.sex)] || {};
+          key = spriteFor(other, pose, layer, fallback);
+          flip = !!key;
+        }
+        if (key) {
+          map[layer] = key;
+          if (layer === "main" || layer === "off") weapon[layer] = { both: place.id === "both", flip: flip };
+        }
       });
       if (rec.flags && rec.flags.headCover === "full") fullHead = true;
     });
     const mainRec = wornId("main") ? pdFind(wornId("main")) : null;
     if (mainRec && mainRec.flags && mainRec.flags.twoHanded && wornId("off") !== wornId("main")) {
       delete map.off;
+      delete weapon.off;
     }
     if (fullHead) delete map.hair;
     return {
@@ -325,6 +351,7 @@
       riderOffsetY: ride && ride.ride ? ride.ride.riderOffsetY : 0,
       layerMode: (ride && ride.ride && ride.ride.layerMode) || "ride",
       fallback,
+      weapon,
     };
   }
 
@@ -641,8 +668,103 @@
     return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
   }
 
+  // Median pixel of each glove hand. Standing frames are phase * 5 + direction.
+  // Each row is mainX, mainY, offX, offY. Back and back-left put the main hand
+  // on the viewer's right; the other facings put it on the viewer's left.
+  const GLOVE_HANDS = {
+    male: [
+      [19, -46, -15, -47], [5, -48, -16, -43], [-14, -45, -6, -41], [-23, -42, 5, -40], [-18, -37, 14, -43],
+      [19, -46, -15, -47], [5, -48, -15, -43], [-14, -45, -6, -41], [-23, -42, 5, -40], [-18, -36, 14, -43],
+      [19, -46, -14, -46], [5, -48, -15, -43], [-15, -45, -6, -40], [-24, -42, 5, -39], [-18, -36, 14, -43]
+    ],
+    female: [
+      [14, -46, -16, -39], [-3, -43, -11, -34], [-19, -44, 1, -32], [-22, -39, 12, -35], [-12, -35, 16, -39],
+      [14, -46, -15, -38], [-5, -39, -11, -33], [-20, -44, 1, -32], [-22, -39, 12, -35], [-12, -35, 16, -39],
+      [14, -46, -16, -38], [-4, -40, -11, -34], [-20, -44, 1, -32], [-22, -39, 12, -35], [-12, -35, 16, -39]
+    ]
+  };
+  const opaqueCache = new Map();
+  const imageIds = new WeakMap();
+  let imageSerial = 1;
+
+  function imageId(img) {
+    let id = imageIds.get(img);
+    if (!id) {
+      id = imageSerial++;
+      imageIds.set(img, id);
+    }
+    return id;
+  }
+
+  function frameOpaque(img, frame) {
+    const w = frame.width;
+    const h = frame.height;
+    if (!w || !h) return [];
+    const key = imageId(img) + ":" + frame.x + ":" + frame.y + ":" + w + ":" + h;
+    const hit = opaqueCache.get(key);
+    if (hit) return hit;
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const g = c.getContext("2d", { willReadFrequently: true });
+    g.drawImage(img, frame.x, frame.y, w, h, 0, 0, w, h);
+    let data;
+    try {
+      data = g.getImageData(0, 0, w, h).data;
+    } catch (err) {
+      opaqueCache.set(key, []);
+      return [];
+    }
+    const pts = [];
+    for (let i = 3, p = 0; i < data.length; i += 4, p++) {
+      if (data[i] > 32) pts.push([p % w, (p / w) | 0]);
+    }
+    opaqueCache.set(key, pts);
+    return pts;
+  }
+
+  // A pixel already within 5px of a glove hand is in the hand and stays at its
+  // anchor. A pixel 5px or more above the hand is a raised or floating sheet.
+  function weaponShift(img, frame, sex, frameIndex, layer, spec) {
+    const table = GLOVE_HANDS[sex] || GLOVE_HANDS.female;
+    const row = table[frameIndex] || table[4];
+    const main = { x: row[0], y: row[1] };
+    const off = { x: row[2], y: row[3] };
+    const hand = layer === "off" ? off : main;
+    const flip = !!(spec && spec.flip);
+    const pts = frameOpaque(img, frame);
+    if (!pts.length) return { x: 0, y: 0 };
+    function nearest(target) {
+      let best = null;
+      let bestD = Infinity;
+      for (let i = 0; i < pts.length; i++) {
+        const px = pts[i][0];
+        const py = pts[i][1];
+        const x = flip ? frame.anchorX - px : -frame.anchorX + px;
+        const y = -frame.anchorY + py;
+        const d = (x - target.x) * (x - target.x) + (y - target.y) * (y - target.y);
+        if (d < bestD) {
+          bestD = d;
+          best = { x: x, y: y, d: d };
+        }
+      }
+      best.d = Math.sqrt(best.d);
+      return best;
+    }
+    if (spec && spec.both) {
+      const mid = { x: (main.x + off.x) / 2, y: (main.y + off.y) / 2 };
+      if (nearest(main).d < 5 || nearest(off).d < 5) return { x: 0, y: 0 };
+      const at = nearest(mid);
+      return { x: mid.x - at.x, y: mid.y - at.y };
+    }
+    const at = nearest(hand);
+    if (at.y <= hand.y - 5) return { x: hand.x - at.x, y: hand.y - at.y };
+    return { x: 0, y: 0 };
+  }
+
   async function paint() {
     const token = ++renderToken;
+    weaponUnpainted = false;
     const size = canvasSize();
     paintBackground(size);
     if (!PD) return;
@@ -658,20 +780,6 @@
       if (missing.length) {
         const handsAt = order.indexOf("hands");
         order.splice(handsAt < 0 ? order.length : handsAt + 1, 0, ...missing);
-      }
-    }
-    // A weapon behind the body reads as slung on the back. Hold main and off
-    // with the hands, in front of the body, for every facing.
-    const bodyAt = Math.max(order.indexOf("body"), order.indexOf("nude"));
-    if (bodyAt >= 0) {
-      const weapons = [];
-      for (let i = bodyAt - 1; i >= 0; i--) {
-        if (order[i] === "main" || order[i] === "off") weapons.unshift(order.splice(i, 1)[0]);
-      }
-      if (weapons.length) {
-        const handsAt = order.indexOf("hands");
-        const at = handsAt >= 0 ? handsAt : order.indexOf("body");
-        order.splice(at + 1, 0, ...weapons);
       }
     }
     const visible = order.filter(layer => preview.map[layer]);
@@ -719,71 +827,47 @@
       const mountedFrame = mountedBody && (mountedBody.frames[frameIndex] || mountedBody.frames[dir.source]);
       if (standingFrame && mountedFrame) fallbackLift = mountedFrame.anchorY - standingFrame.anchorY;
     }
-    // Female Sadell's Doomsday (item-2665g) is the back-slung sheet: the head
-    // sticks out behind the shoulder. Grip in frame pixels, and a clockwise
-    // rotation that stands that frame up in the hand. The male sheet is already
-    // upright and is not listed.
-    const sadellFemale = [
-      { gx: 0, gy: 106, deg: 28 }, { gx: 26, gy: 108, deg: -3 }, { gx: 74, gy: 97, deg: -20 },
-      { gx: 88, gy: 81, deg: -31 }, { gx: 59, gy: 69, deg: -33 }, { gx: 0, gy: 102, deg: 32 },
-      { gx: 21, gy: 104, deg: -7 }, { gx: 77, gy: 95, deg: -21 }, { gx: 94, gy: 78, deg: -36 },
-      { gx: 61, gy: 61, deg: -37 }, { gx: 0, gy: 99, deg: 36 }, { gx: 19, gy: 102, deg: -3 },
-      { gx: 78, gy: 92, deg: -22 }, { gx: 98, gy: 75, deg: -40 }, { gx: 61, gy: 59, deg: -39 }
-    ];
     visible.forEach((layer, i) => {
       const asset = PD.sprites[preview.map[layer]];
       const img = imgs[i];
-      if (!asset || !img) return;
+      if (!asset || !img) {
+        if (asset && (layer === "main" || layer === "off")) weaponUnpainted = true;
+        return;
+      }
       const frame = asset.frames[frameIndex] || asset.frames[dir.source];
       if (!frame) return;
       const riderLayer = preview.pose === "mounted" && layer !== "ride";
       const raised = riderLayer && preview.fallback && preview.fallback.indexOf(layer) >= 0 ? fallbackLift : 0;
-      const sheathed = preview.map[layer] === "item-2665g"
-        ? (sadellFemale[frameIndex] || sadellFemale[dir.source])
-        : null;
-      if (sheathed && (layer === "main" || layer === "off")) {
-        const bases = (PD.customization.sexes[snap.sex] || {}).baseSprites || {};
-        const bodyAsset = PD.sprites[bases[preview.pose] || bases.standing];
-        const bodyFrame = bodyAsset && (bodyAsset.frames[frameIndex] || bodyAsset.frames[dir.source]);
-        const handX = bodyFrame ? -bodyFrame.anchorX + 2 : -frame.anchorX;
-        const handY = bodyFrame ? -bodyFrame.anchorY + bodyFrame.height * 0.76 : -frame.anchorY;
-        ctx.save();
-        ctx.translate(originX, originY);
-        ctx.scale(scale * (dir.mirror ? -1 : 1), scale);
-        if (riderLayer || preview.pose === "standing") ctx.scale(1, heightSetting.scale);
-        ctx.translate(handX, handY - raised - (riderLayer ? preview.riderOffsetY : 0));
-        ctx.rotate(sheathed.deg * Math.PI / 180);
-        ctx.drawImage(
-          img, frame.x, frame.y, frame.width, frame.height,
-          -sheathed.gx, -sheathed.gy, frame.width, frame.height
-        );
-        ctx.restore();
-        return;
-      }
-      // Wait sheets for some weapons sit on the shoulder. Drop those so the
-      // lower end meets the hand. Weapons already at the hand stay put.
-      let handDrop = 0;
-      if (layer === "main" || layer === "off") {
-        const bases = (PD.customization.sexes[snap.sex] || {}).baseSprites || {};
-        const bodyAsset = PD.sprites[bases[preview.pose] || bases.standing];
-        const bodyFrame = bodyAsset && (bodyAsset.frames[frameIndex] || bodyAsset.frames[dir.source]);
-        if (bodyFrame) {
-          const handY = -bodyFrame.anchorY + bodyFrame.height * 0.76;
-          const bottom = -frame.anchorY - raised + frame.height;
-          if (bottom < handY) handDrop = handY - bottom;
-        }
-      }
+      const spec = (preview.weapon || {})[layer];
+      const grip = (layer === "main" || layer === "off")
+        ? weaponShift(img, frame, snap.sex, frameIndex, layer, spec)
+        : { x: 0, y: 0 };
+      const destY = -frame.anchorY - raised + grip.y - (riderLayer ? preview.riderOffsetY : 0);
       ctx.save();
       ctx.translate(originX, originY);
       ctx.scale(scale * (dir.mirror ? -1 : 1), scale);
       if (riderLayer || preview.pose === "standing") ctx.scale(1, heightSetting.scale);
-      ctx.drawImage(
-        img, frame.x, frame.y, frame.width, frame.height,
-        -frame.anchorX, -frame.anchorY - raised + handDrop - (riderLayer ? preview.riderOffsetY : 0),
-        frame.width, frame.height
-      );
+      if (spec && spec.flip) {
+        ctx.drawImage(
+          img, frame.x, frame.y, frame.width, frame.height,
+          frame.anchorX + grip.x, destY, -frame.width, frame.height
+        );
+      } else {
+        ctx.drawImage(
+          img, frame.x, frame.y, frame.width, frame.height,
+          -frame.anchorX + grip.x, destY, frame.width, frame.height
+        );
+      }
       ctx.restore();
     });
+    if (weaponUnpainted) {
+      ctx.save();
+      ctx.font = "13px sans-serif";
+      ctx.fillStyle = "#f2efe6";
+      ctx.textAlign = "center";
+      ctx.fillText("no sprite", size.width / 2, size.height - 16);
+      ctx.restore();
+    }
     const dirEl = document.querySelector("#dollDir");
     if (dirEl) dirEl.textContent = DIR_LABEL[dir.id] || dir.id;
   }
@@ -832,6 +916,8 @@
         : " · full character, no sprite for this sex";
     } else if (shift && !already) {
       note = " · hidden while a shapeshift is worn";
+    } else if (!already && weaponUnpainted) {
+      note = " · no sprite";
     } else if (!already && !itemHasSprite(rec, place)) {
       note = " · no preview for this sex";
     }
