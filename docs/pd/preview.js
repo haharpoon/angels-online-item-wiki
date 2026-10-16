@@ -719,6 +719,17 @@
       const mountedFrame = mountedBody && (mountedBody.frames[frameIndex] || mountedBody.frames[dir.source]);
       if (standingFrame && mountedFrame) fallbackLift = mountedFrame.anchorY - standingFrame.anchorY;
     }
+    // Female Sadell's Doomsday (item-2665g) is the back-slung sheet: the head
+    // sticks out behind the shoulder. Grip in frame pixels, and a clockwise
+    // rotation that stands that frame up in the hand. The male sheet is already
+    // upright and is not listed.
+    const sadellFemale = [
+      { gx: 0, gy: 106, deg: 28 }, { gx: 26, gy: 108, deg: -3 }, { gx: 74, gy: 97, deg: -20 },
+      { gx: 88, gy: 81, deg: -31 }, { gx: 59, gy: 69, deg: -33 }, { gx: 0, gy: 102, deg: 32 },
+      { gx: 21, gy: 104, deg: -7 }, { gx: 77, gy: 95, deg: -21 }, { gx: 94, gy: 78, deg: -36 },
+      { gx: 61, gy: 61, deg: -37 }, { gx: 0, gy: 99, deg: 36 }, { gx: 19, gy: 102, deg: -3 },
+      { gx: 78, gy: 92, deg: -22 }, { gx: 98, gy: 75, deg: -40 }, { gx: 61, gy: 59, deg: -39 }
+    ];
     visible.forEach((layer, i) => {
       const asset = PD.sprites[preview.map[layer]];
       const img = imgs[i];
@@ -727,6 +738,28 @@
       if (!frame) return;
       const riderLayer = preview.pose === "mounted" && layer !== "ride";
       const raised = riderLayer && preview.fallback && preview.fallback.indexOf(layer) >= 0 ? fallbackLift : 0;
+      const sheathed = preview.map[layer] === "item-2665g"
+        ? (sadellFemale[frameIndex] || sadellFemale[dir.source])
+        : null;
+      if (sheathed && (layer === "main" || layer === "off")) {
+        const bases = (PD.customization.sexes[snap.sex] || {}).baseSprites || {};
+        const bodyAsset = PD.sprites[bases[preview.pose] || bases.standing];
+        const bodyFrame = bodyAsset && (bodyAsset.frames[frameIndex] || bodyAsset.frames[dir.source]);
+        const handX = bodyFrame ? -bodyFrame.anchorX + 2 : -frame.anchorX;
+        const handY = bodyFrame ? -bodyFrame.anchorY + bodyFrame.height * 0.76 : -frame.anchorY;
+        ctx.save();
+        ctx.translate(originX, originY);
+        ctx.scale(scale * (dir.mirror ? -1 : 1), scale);
+        if (riderLayer || preview.pose === "standing") ctx.scale(1, heightSetting.scale);
+        ctx.translate(handX, handY - raised - (riderLayer ? preview.riderOffsetY : 0));
+        ctx.rotate(sheathed.deg * Math.PI / 180);
+        ctx.drawImage(
+          img, frame.x, frame.y, frame.width, frame.height,
+          -sheathed.gx, -sheathed.gy, frame.width, frame.height
+        );
+        ctx.restore();
+        return;
+      }
       // Wait sheets for some weapons sit on the shoulder. Drop those so the
       // lower end meets the hand. Weapons already at the hand stay put.
       let handDrop = 0;
