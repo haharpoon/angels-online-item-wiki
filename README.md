@@ -1,5 +1,7 @@
 # Angels Online item wiki
 
+**Live site:** [https://haharpoon.github.io/angels-online-item-wiki/](https://haharpoon.github.io/angels-online-item-wiki/) (redirects to the item list) · **Wardrobe:** [https://haharpoon.github.io/angels-online-item-wiki/fashion.html](https://haharpoon.github.io/angels-online-item-wiki/fashion.html)
+
 Searchable item list and paper doll, including update 26 fashion from `item9`.
 
 GitHub's website will not run this page. The HTML is about 19 MB, so the file view says it can't show a file that big, and it would only show source anyway.
