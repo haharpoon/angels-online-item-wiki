@@ -242,25 +242,52 @@
     return found;
   }
 
+  function spriteFor(sexComps, pose, layer, fallback) {
+    const posed = (sexComps[pose] || {})[layer];
+    if (posed) return posed;
+    if (pose === "mounted" && (sexComps.standing || {})[layer]) {
+      fallback.push(layer);
+      return sexComps.standing[layer];
+    }
+    return "";
+  }
+
   function layers() {
     const shift = shapeshiftWorn();
-    if (shift) {
-      // The sprite is the whole character. Leave out the dummy, hair, mount, and other gear.
-      const pose = "standing";
-      const place = placementFor(shift.rec, wornPlace(shift.slot));
-      const comps = ((shift.rec.components || {})[snap.sex] || {})[pose] || {};
-      const map = {};
-      (place.layers || []).forEach(layer => {
-        if (comps[layer]) map[layer] = comps[layer];
-      });
-      return { map: map, pose: pose, riderOffsetY: 0, layerMode: "ride" };
-    }
     const rideId = wornId("ride");
     const ride = rideId ? pdFind(rideId) : null;
     const pose = ride ? "mounted" : "standing";
+    if (shift) {
+      // The sprite is the whole character. Leave out the dummy, hair, and other gear.
+      // A mount still draws, with the shapeshift in the rider seat.
+      const place = placementFor(shift.rec, wornPlace(shift.slot));
+      const sexComps = (shift.rec.components || {})[snap.sex] || {};
+      const map = {};
+      const fallback = [];
+      if (ride) {
+        const rideComps = (ride.components || {})[snap.sex] || {};
+        const ridePlace = placementFor(ride, wornPlace("ride"));
+        (ridePlace.layers || ["ride"]).forEach(layer => {
+          const key = spriteFor(rideComps, pose, layer, fallback);
+          if (key) map[layer] = key;
+        });
+      }
+      (place.layers || []).forEach(layer => {
+        const key = spriteFor(sexComps, pose, layer, fallback);
+        if (key) map[layer] = key;
+      });
+      return {
+        map: map,
+        pose: pose,
+        riderOffsetY: ride && ride.ride ? ride.ride.riderOffsetY : 0,
+        layerMode: (ride && ride.ride && ride.ride.layerMode) || "ride",
+        fallback: fallback,
+      };
+    }
     const sex = PD.customization.sexes[snap.sex];
     const hair = sex.hairstyles[snap.hair] || sex.hairstyles[0];
     const map = { nude: sex.baseSprites[pose], hair: hair.sprites[pose] };
+    const fallback = [];
     let fullHead = false;
     const seen = new Set();
     SLOT_ORDER.forEach(slot => {
@@ -271,11 +298,9 @@
       seen.add(slot + ":" + id + ":" + wornPlace(slot));
       const place = placementFor(rec, wornPlace(slot));
       const sexComps = (rec.components || {})[snap.sex] || {};
-      const comps = sexComps[pose] || {};
-      const standing = sexComps.standing || {};
       (place.layers || []).forEach(layer => {
-        if (comps[layer]) map[layer] = comps[layer];
-        else if (pose === "mounted" && standing[layer]) map[layer] = standing[layer];
+        const key = spriteFor(sexComps, pose, layer, fallback);
+        if (key) map[layer] = key;
       });
       if (rec.flags && rec.flags.headCover === "full") fullHead = true;
     });
@@ -289,6 +314,7 @@
       pose,
       riderOffsetY: ride && ride.ride ? ride.ride.riderOffsetY : 0,
       layerMode: (ride && ride.ride && ride.ride.layerMode) || "ride",
+      fallback,
     };
   }
 
@@ -616,7 +642,14 @@
     const orders = preview.pose === "standing"
       ? PD.layerOrders.standing
       : (PD.layerOrders.mounted[preview.layerMode] || PD.layerOrders.mounted.ride);
-    const order = orders[sourceId] || orders.front || [];
+    const order = (orders[sourceId] || orders.front || []).slice();
+    if (preview.pose === "mounted" && preview.fallback) {
+      const missing = preview.fallback.filter(layer => order.indexOf(layer) < 0 && preview.map[layer]);
+      if (missing.length) {
+        const handsAt = order.indexOf("hands");
+        order.splice(handsAt < 0 ? order.length : handsAt + 1, 0, ...missing);
+      }
+    }
     const visible = order.filter(layer => preview.map[layer]);
     const imgs = [];
     for (const layer of visible) imgs.push(await tintedImage(preview.map[layer]));
@@ -651,6 +684,17 @@
       originY = Math.round(originY * size.ratio) / size.ratio;
     }
     const frameIndex = snap.phase * 5 + dir.source;
+    // A standing sheet used while mounted is anchored for the standing body.
+    // Lift it by the same amount the mounted body sheet is lifted.
+    let fallbackLift = 0;
+    if (preview.pose === "mounted" && preview.fallback && preview.fallback.length) {
+      const bases = (PD.customization.sexes[snap.sex] || {}).baseSprites || {};
+      const standingBody = PD.sprites[bases.standing];
+      const mountedBody = PD.sprites[bases.mounted];
+      const standingFrame = standingBody && (standingBody.frames[frameIndex] || standingBody.frames[dir.source]);
+      const mountedFrame = mountedBody && (mountedBody.frames[frameIndex] || mountedBody.frames[dir.source]);
+      if (standingFrame && mountedFrame) fallbackLift = mountedFrame.anchorY - standingFrame.anchorY;
+    }
     visible.forEach((layer, i) => {
       const asset = PD.sprites[preview.map[layer]];
       const img = imgs[i];
@@ -658,13 +702,14 @@
       const frame = asset.frames[frameIndex] || asset.frames[dir.source];
       if (!frame) return;
       const riderLayer = preview.pose === "mounted" && layer !== "ride";
+      const raised = riderLayer && preview.fallback && preview.fallback.indexOf(layer) >= 0 ? fallbackLift : 0;
       ctx.save();
       ctx.translate(originX, originY);
       ctx.scale(scale * (dir.mirror ? -1 : 1), scale);
       if (riderLayer || preview.pose === "standing") ctx.scale(1, heightSetting.scale);
       ctx.drawImage(
         img, frame.x, frame.y, frame.width, frame.height,
-        -frame.anchorX, -frame.anchorY - (riderLayer ? preview.riderOffsetY : 0),
+        -frame.anchorX, -frame.anchorY - raised - (riderLayer ? preview.riderOffsetY : 0),
         frame.width, frame.height
       );
       ctx.restore();
