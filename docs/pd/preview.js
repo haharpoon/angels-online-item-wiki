@@ -723,8 +723,11 @@
     return pts;
   }
 
-  // A pixel already within 5px of a glove hand is in the hand and stays at its
-  // anchor. A pixel 5px or more above the hand is a raised or floating sheet.
+  // Male: a pixel already within 5px of a glove hand stays at its anchor.
+  // A pixel 5px or more above the hand is a raised or floating sheet.
+  // Female rows in GLOVE_HANDS are filled for every facing; her sheets miss the
+  // hand because that test treats a nearby tip, or a touch on either fist, as
+  // already held. Seat those on the layer hand so they hang like male ones.
   function weaponShift(img, frame, sex, frameIndex, layer, spec) {
     const table = GLOVE_HANDS[sex] || GLOVE_HANDS.female;
     const row = table[frameIndex] || table[4];
@@ -732,34 +735,107 @@
     const off = { x: row[2], y: row[3] };
     const hand = layer === "off" ? off : main;
     const flip = !!(spec && spec.flip);
-    const pts = frameOpaque(img, frame);
-    if (!pts.length) return { x: 0, y: 0 };
+    const raw = frameOpaque(img, frame);
+    if (!raw.length) return { x: 0, y: 0 };
+    function worldAt(px, py) {
+      return {
+        x: flip ? frame.anchorX - px : -frame.anchorX + px,
+        y: -frame.anchorY + py
+      };
+    }
     function nearest(target) {
       let best = null;
       let bestD = Infinity;
-      for (let i = 0; i < pts.length; i++) {
-        const px = pts[i][0];
-        const py = pts[i][1];
-        const x = flip ? frame.anchorX - px : -frame.anchorX + px;
-        const y = -frame.anchorY + py;
-        const d = (x - target.x) * (x - target.x) + (y - target.y) * (y - target.y);
+      for (let i = 0; i < raw.length; i++) {
+        const w = worldAt(raw[i][0], raw[i][1]);
+        const d = (w.x - target.x) * (w.x - target.x) + (w.y - target.y) * (w.y - target.y);
         if (d < bestD) {
           bestD = d;
-          best = { x: x, y: y, d: d };
+          best = w;
         }
       }
-      best.d = Math.sqrt(best.d);
+      best.d = Math.sqrt(bestD);
       return best;
     }
-    if (spec && spec.both) {
-      const mid = { x: (main.x + off.x) / 2, y: (main.y + off.y) / 2 };
-      if (nearest(main).d < 5 || nearest(off).d < 5) return { x: 0, y: 0 };
-      const at = nearest(mid);
-      return { x: mid.x - at.x, y: mid.y - at.y };
+    if (sex !== "female") {
+      if (spec && spec.both) {
+        const mid = { x: (main.x + off.x) / 2, y: (main.y + off.y) / 2 };
+        if (nearest(main).d < 5 || nearest(off).d < 5) return { x: 0, y: 0 };
+        const at = nearest(mid);
+        return { x: mid.x - at.x, y: mid.y - at.y };
+      }
+      const at = nearest(hand);
+      if (at.y <= hand.y - 5) return { x: hand.x - at.x, y: hand.y - at.y };
+      return { x: 0, y: 0 };
     }
-    const at = nearest(hand);
-    if (at.y <= hand.y - 5) return { x: hand.x - at.x, y: hand.y - at.y };
-    return { x: 0, y: 0 };
+    const pts = [];
+    for (let i = 0; i < raw.length; i++) pts.push(worldAt(raw[i][0], raw[i][1]));
+    let below = 0;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i];
+      if (p.y >= hand.y) below++;
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.y > maxY) maxY = p.y;
+    }
+    const span = Math.max(1, maxY - minY);
+    const belowFrac = below / pts.length;
+    function nearHand(h) {
+      for (let i = 0; i < pts.length; i++) {
+        const dx = pts[i].x - h.x;
+        const dy = pts[i].y - h.y;
+        if (dx * dx + dy * dy <= 36) return true;
+      }
+      return false;
+    }
+    // Two disconnected blobs, one on each fist: the trident. A solid weapon
+    // that crosses the body still has pixels at the torso centre.
+    let center = false;
+    const midY = (minY + maxY) / 2;
+    if (spec && spec.both && nearHand(main) && nearHand(off) && minX < -4 && maxX > 4) {
+      for (let i = 0; i < pts.length; i++) {
+        const p = pts[i];
+        if (Math.abs(p.x) <= 3 && Math.abs(p.y - midY) <= span * 0.35) {
+          center = true;
+          break;
+        }
+      }
+    }
+    const straddle = !!(spec && spec.both) && nearHand(main) && nearHand(off) && minX < -4 && maxX > 4 && !center;
+    if (belowFrac >= 0.05 && !straddle) return { x: 0, y: 0 };
+    // Male polearms hang about 22px below the fist; short blades hang less.
+    const hang = Math.min(22, Math.round(span * 0.4));
+    const gripY = maxY - hang;
+    let gripX;
+    if (straddle) {
+      const farRight = hand.x <= 0;
+      const xs = [];
+      for (let i = 0; i < pts.length; i++) {
+        if (farRight ? pts[i].x > 2 : pts[i].x < -2) xs.push(pts[i].x);
+      }
+      xs.sort(function (a, b) { return a - b; });
+      gripX = xs.length ? xs[xs.length >> 1] : 0;
+    } else {
+      const band = [];
+      for (let i = 0; i < pts.length; i++) {
+        if (Math.abs(pts[i].y - gripY) <= 4) band.push(pts[i].x);
+      }
+      if (!band.length) {
+        for (let i = 0; i < pts.length; i++) {
+          if (pts[i].y >= minY + span * 0.55) band.push(pts[i].x);
+        }
+      }
+      if (!band.length) {
+        for (let i = 0; i < pts.length; i++) band.push(pts[i].x);
+      }
+      band.sort(function (a, b) { return a - b; });
+      gripX = band[band.length >> 1];
+    }
+    let dy = hand.y - gripY;
+    if (dy < 0) dy = 0;
+    return { x: hand.x - gripX, y: dy };
   }
 
   async function paint() {
