@@ -1233,6 +1233,7 @@ HTML = r"""<!doctype html>
         <button type="button" data-tab="items" aria-pressed="true">Items</button>
         <button type="button" data-tab="skills">Skills</button>
         <a href="fashion.html">Wardrobe</a>
+        <a href="pets.html">Pets</a>
       </div>
     </div>
   </header>
