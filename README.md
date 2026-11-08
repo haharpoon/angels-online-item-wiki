@@ -4,7 +4,7 @@
 
 Searchable item list and paper doll, including update 26 fashion from `item9`.
 
-Client sprites and icons are read through update32. Update 27 to 32 add art only (no `setting` tables), so they fill in paper-doll sprites and icons for items already listed. Extract them next to the other paks as `update27` to `update32`; `PAK_ORDER` in `tools/shp_icon.py` reads them last, so newer files win.
+Client sprites and icons are read through update32. The item tables are the 6 Nov 2026 `update26.pak`, which already includes the Taiwan update32 rows, so the catalog runs from update 26 through update 32. The update27 to update32 paks still supply the newer paper-doll sprites and icons. Extract them next to the other paks as `update27` to `update32`; `PAK_ORDER` in `tools/shp_icon.py` reads them last, so newer files win.
 
 GitHub's website will not run this page. The HTML is about 19 MB, so the file view says it can't show a file that big, and it would only show source anyway.
 
