@@ -378,15 +378,18 @@ def sheet_number(path: Path) -> int | None:
 def shadow_sheet_ids(numbers: set[int]) -> set[int]:
     """Ids of the tall sheets that float on the classic ~82px dummy.
 
-    A 12xxxx file is one of those sheets. So is a file whose id is exactly
-    5000 above another sheet in the same folder (75038 beside 70038).
+    A file whose id is exactly 5000 above another sheet in the same folder is
+    the tall copy (75038 beside 70038, 131147 beside 126147). A 12xxxx file is
+    also tall when the folder has a classic sheet outside that range. Items from
+    update27 on number their classic sheet 12xxxx themselves (126147 for
+    i9147), so a 12xxxx file with no such alternative is the classic one.
     """
-    bad: set[int] = set()
-    for number in numbers:
-        if 120000 <= number < 130000:
-            bad.add(number)
-        if (number - 5000) in numbers:
-            bad.add(number)
+    bad: set[int] = {n for n in numbers if (n - 5000) in numbers}
+    classic_elsewhere = any(
+        n not in bad and not (120000 <= n < 130000) for n in numbers
+    )
+    if classic_elsewhere:
+        bad.update(n for n in numbers if 120000 <= n < 130000)
     return bad
 
 
