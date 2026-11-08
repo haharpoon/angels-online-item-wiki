@@ -24,7 +24,7 @@ from PIL import Image
 PAK_ORDER = (
     ["data1", "update", "update2", "update3"]
     + [f"UPDATE{i}" for i in range(4, 22)]
-    + [f"update{i}" for i in range(22, 27)]
+    + [f"update{i}" for i in range(22, 33)]
 )
 
 
